@@ -124,8 +124,8 @@ io.on("connection", async (socket) => {
 await store.connect();
 poller.start();
 
-httpServer.listen(config.PORT, () => {
-  console.info(`[server] listening on http://localhost:${config.PORT}`);
+httpServer.listen(config.PORT, "0.0.0.0", () => {
+  console.info(`[server] listening on http://0.0.0.0:${config.PORT} (local network accessible)`);
 });
 
 const shutdown = async () => {

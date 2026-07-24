@@ -226,31 +226,12 @@ h2 {
   cursor: pointer;
 }
 
-.icon-refresh,
 .icon-send,
 .icon-trash {
   position: relative;
   display: block;
   width: 18px;
   height: 18px;
-}
-
-.icon-refresh {
-  border: 2px solid currentColor;
-  border-right-color: transparent;
-  border-radius: 50%;
-}
-
-.icon-refresh::after {
-  position: absolute;
-  right: -3px;
-  top: 0;
-  width: 7px;
-  height: 7px;
-  border-top: 2px solid currentColor;
-  border-right: 2px solid currentColor;
-  content: "";
-  transform: rotate(28deg);
 }
 
 .icon-send::before {
@@ -366,14 +347,15 @@ h2 {
 
 .line-rail {
   position: absolute;
-  top: 158px;
+  top: 18px;
   bottom: 78px;
-  left: 18px;
+  right: 18px;
   z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 78px;
+  width: max-content;
+  min-width: 140px;
   overflow-y: auto;
   padding: 8px;
   border: 1px solid rgb(255 255 255 / 10%);
@@ -791,13 +773,10 @@ h2 {
 }
 
 .journey-card {
-  position: absolute;
-  top: 18px;
-  right: 18px;
   z-index: 3;
   display: grid;
   gap: 12px;
-  width: min(430px, calc(100vw - 36px));
+  width: min(390px, calc(100vw - 36px));
   max-height: calc(100vh - 112px);
   overflow-y: auto;
   padding: 14px;
@@ -1700,16 +1679,13 @@ h2 {
   }
 
   .line-rail {
-    top: 232px;
+    top: 76px;
     bottom: 86px;
-    left: 12px;
-    width: 66px;
+    right: 12px;
+    width: max-content;
   }
 
   .journey-card {
-    top: 232px;
-    right: 12px;
-    left: 86px;
     width: auto;
   }
 

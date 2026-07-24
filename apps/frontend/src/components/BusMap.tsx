@@ -238,7 +238,26 @@ function MetroLogo() {
 }
 
 function RefreshIcon() {
-  return <span className="icon-refresh" aria-hidden="true" />;
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+      <path d="M3 3v5h5"/>
+    </svg>
+  );
+}
+
+function ChevronIcon({ expanded }: { expanded: boolean }) {
+  return (
+    <svg 
+      xmlns="http://www.w3.org/2000/svg" 
+      width="16" height="16" 
+      viewBox="0 0 24 24" fill="none" 
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+    >
+      <polyline points="6 9 12 15 18 9"></polyline>
+    </svg>
+  );
 }
 
 function SendIcon() {
@@ -270,9 +289,13 @@ export default function BusMap() {
   const lastRenderRef = useRef(0);
 
   const [filter, setFilter] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
+  const [isJourneyExpanded, setIsJourneyExpanded] = useState(true);
+  const [isLinesFilterExpanded, setIsLinesFilterExpanded] = useState(false);
   const [vehicleCount, setVehicleCount] = useState(0);
   const [stopCount, setStopCount] = useState(0);
   const [metroStationCount, setMetroStationCount] = useState(0);
@@ -356,9 +379,8 @@ export default function BusMap() {
   }, [linesPayload]);
 
   const railLines = useMemo(() => {
-    const activeLines = new Set(availableLines);
     return [
-      ...favoriteLineNumbers.filter((line) => activeLines.has(line)),
+      ...favoriteLineNumbers,
       ...availableLines.filter((line) => !favoriteLineNumbers.includes(line))
     ];
   }, [availableLines, favoriteLineNumbers]);
@@ -453,7 +475,7 @@ export default function BusMap() {
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [filter, mode]);
+  }, [filter, mode, linesPayload]);
 
   useEffect(() => {
     updateLayerVisibility();
@@ -495,6 +517,19 @@ export default function BusMap() {
     if ((!linesOpen && !selectedId) || linesPayload || linesLoading) return;
     void loadLines();
   }, [linesOpen, selectedId, linesPayload, linesLoading]);
+
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !linesPayload) return;
+    
+    for (const line of linesPayload.lines) {
+      if (!line.color) continue;
+      const iconId = `${BUS_ICON_PREFIX}-${line.number}`;
+      if (!map.hasImage(iconId)) {
+        map.addImage(iconId, createBusIconImageData(line.color), { pixelRatio: 2 });
+      }
+    }
+  }, [linesPayload]);
 
   useEffect(() => {
     if (filter.trim().length < 2 || linesPayload || linesLoading) return;
@@ -2987,6 +3022,15 @@ export default function BusMap() {
   }
 
   function getLineTheme(lineNumber: string) {
+    const lineData = linesPayload?.lines.find((entry) => entry.number === lineNumber || entry.id === lineNumber);
+    if (lineData?.color) {
+      return { 
+        key: lineData.number, 
+        label: lineData.name, 
+        color: lineData.color, 
+        text: lineData.text_color ?? "#FFFFFF" 
+      };
+    }
     const familyKey = getLineFamilyKey(lineNumber);
     return BUS_LINE_FAMILIES.find((family) => family.key === familyKey) ?? BUS_LINE_FAMILIES[BUS_LINE_FAMILIES.length - 1];
   }
@@ -3000,6 +3044,10 @@ export default function BusMap() {
   }
 
   function getBusIconId(lineNumber: string) {
+    const lineData = linesPayload?.lines.find(l => l.number === lineNumber || l.id === lineNumber);
+    if (lineData) {
+      return `${BUS_ICON_PREFIX}-${lineData.number}`;
+    }
     return `${BUS_ICON_PREFIX}-${getLineFamilyKey(lineNumber)}`;
   }
 
@@ -3336,6 +3384,8 @@ export default function BusMap() {
 
   function createVehiclePopupHtml(vehicle: VehiclePosition, lineColor: string) {
     const vehicleNumber = vehicle.vehicle_id.replace(/^stcp-/, "");
+    const lineData = linesPayload?.lines.find(l => l.number === vehicle.line_number || l.id === vehicle.line_number);
+    const resolvedLineNumber = lineData ? lineData.number : vehicle.line_number;
     const nextStop = escapeHtml(vehicle.next_stop_name ?? vehicle.next_stop_id ?? "Não disponível");
     const eta = vehicle.next_stop_eta_min === null ? "ETA não disponível" : `${vehicle.next_stop_eta_min} min até à próxima`;
     const gpsTime = new Date(vehicle.updated_at).toLocaleTimeString("pt-PT");
@@ -3344,7 +3394,7 @@ export default function BusMap() {
     return `
       <article class="vehicle-popover" style="--line-color: ${lineColor}">
         <header>
-          <strong>${escapeHtml(vehicle.line_number)}</strong>
+          <strong>${escapeHtml(resolvedLineNumber)}</strong>
           <span>${nextStop}</span>
         </header>
         <div class="vehicle-popover-body">
@@ -3366,21 +3416,21 @@ export default function BusMap() {
       .replace(/'/g, "&#039;");
   }
 
-  function getActiveVehicleCountForLine(lineNumber: string) {
+  function getActiveVehicleCountForLine(lineId: string) {
     let count = 0;
     for (const vehicle of vehiclesRef.current.values()) {
-      if (vehicle.current.line_number === lineNumber) count += 1;
+      if (vehicle.current.line_number === lineId) count += 1;
     }
     return count;
   }
 
-  function lineMatchesSearch(lineNumber: string, normalizedQuery: string) {
+  function lineMatchesSearch(vehicleLineId: string, normalizedQuery: string) {
     const query = normalizeSearchText(normalizedQuery);
     if (!query) return true;
-    const normalizedLine = normalizeSearchText(lineNumber);
+    const normalizedLine = normalizeSearchText(vehicleLineId);
     const isNumericQuery = /^\d+[a-z]?$/i.test(query);
 
-    const line = linesPayload?.lines.find((entry) => entry.number === lineNumber);
+    const line = linesPayload?.lines.find((entry) => entry.id === vehicleLineId || entry.number === vehicleLineId);
     const exactLineExists = linesPayload?.lines.some((entry) => normalizeSearchText(entry.number) === query);
     if (isNumericQuery) {
       if (exactLineExists) return normalizedLine === query;
@@ -3425,6 +3475,44 @@ export default function BusMap() {
       Math.max(UPDATE_INTERVAL_MS, gpsInterval)
     );
   }
+  const searchLineSuggestions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query || query.length < 1) return [];
+    const lines = linesPayload?.lines ?? [];
+    return lines.filter((line) => {
+      return (
+        line.number.toLowerCase().includes(query) ||
+        line.name.toLowerCase().includes(query) ||
+        line.directions.some((direction) => direction.headsign.toLowerCase().includes(query))
+      );
+    }).slice(0, 5);
+  }, [searchQuery, linesPayload]);
+
+  const searchStopSuggestions = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    if (!query || query.length < 3) return [];
+    const lines = linesPayload?.lines ?? [];
+    
+    const uniqueStops = new Map<string, { id: string; name: string; lat: number; lon: number }>();
+    
+    for (const line of lines) {
+      for (const direction of line.directions) {
+        for (const stop of direction.stops) {
+          if (stop.stop_name.toLowerCase().includes(query)) {
+            if (!uniqueStops.has(stop.stop_id)) {
+              uniqueStops.set(stop.stop_id, {
+                id: stop.stop_id,
+                name: stop.stop_name,
+                lat: stop.latitude,
+                lon: stop.longitude
+              });
+            }
+          }
+        }
+      }
+    }
+    return Array.from(uniqueStops.values()).slice(0, 5);
+  }, [searchQuery, linesPayload]);
 
   return (
     <main className="shell">
@@ -3454,79 +3542,23 @@ export default function BusMap() {
               </button>
             </div>
           </div>
-          {mode === "bus" ? (
-            <div className="bus-controls">
-              <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar">
-                <RefreshIcon />
-              </button>
-              <button className="lines-button" onClick={() => setLinesOpen(true)}>
-                <span aria-hidden="true">≡</span>
-                Paragens
-              </button>
-            </div>
-          ) : null}
+
         </section>
-
-        {mode === "metro" ? (
-          <section className="notice-bar">
-            Carruagens estimadas por horário GTFS. A camada fica pronta para trocar por tempo real quando existir feed público.
-          </section>
-        ) : null}
-      </div>
-
-      {mode === "bus" ? (
-        <section className="floating-search" aria-label="Pesquisar linha ou paragem">
-          <label className="search search-with-icon">
-            <span className="search-inline-icon" aria-hidden="true" />
-            <input
-              value={filter}
-              onChange={(event) => setFilter(event.target.value)}
-              placeholder="Linha / Paragem"
-            />
-          </label>
-        </section>
-      ) : null}
-
-      {mode === "bus" ? (
-        <section className="line-rail" aria-label="Filtro rápido por linha">
-          <span>Filtrar por</span>
-          <button className={!filter ? "is-active" : ""} onClick={() => setFilter("")}>
-            Todas
-          </button>
-          {railLines.map((line) => {
-            const lineTheme = getLineTheme(line);
-            const isActive = filter === line;
-            const isFavorite = favoriteLineNumbers.includes(line);
-
-            return (
-              <button
-                key={line}
-                className={isActive ? "is-active" : ""}
-                onClick={() => setFilter(isActive ? "" : line)}
-                style={{
-                  borderColor: isActive ? lineTheme.color : undefined,
-                  borderLeftColor: lineTheme.color,
-                  background: isActive ? lineTheme.color : undefined,
-                  color: isActive ? lineTheme.text : undefined
-                }}
-                title={`Mostrar linha ${line}`}
-              >
-                {isFavorite ? `★ ${line}` : line}
-              </button>
-            );
-          })}
-        </section>
-      ) : null}
 
       {mode === "bus" && journeyOpen ? (
         <section className="journey-card" aria-label="Pesquisar caminho">
-          <header>
+          <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <p className="eyebrow">Percurso rápido</p>
               <h2>Para onde pretende ir?</h2>
             </div>
+            <button type="button" onClick={() => setIsJourneyExpanded(!isJourneyExpanded)} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", padding: "8px" }}>
+              <ChevronIcon expanded={!isJourneyExpanded} />
+            </button>
           </header>
 
+          {isJourneyExpanded ? (
+            <>
           <form className="journey-form" onSubmit={calculateJourney}>
             <div className="journey-time-row">
               <label>
@@ -3699,8 +3731,197 @@ export default function BusMap() {
               ) : null}
             </article>
           ) : null}
+            </>
+          ) : null}
         </section>
       ) : null}
+
+        {mode === "metro" ? (
+          <section className="notice-bar">
+            Carruagens estimadas por horário GTFS. A camada fica pronta para trocar por tempo real quando existir feed público.
+          </section>
+        ) : null}
+      </div>
+
+      {mode === "bus" ? (
+        <section className="floating-search" aria-label="Pesquisar linha ou paragem">
+          <label className="search search-with-icon">
+            <span className="search-inline-icon" aria-hidden="true" />
+            <input
+              value={searchQuery}
+              onChange={(event) => setSearchQuery(event.target.value)}
+              onFocus={() => setIsSearchFocused(true)}
+              onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
+              placeholder="Pesquisar Linha ou Paragem..."
+            />
+            {searchQuery && (
+              <button 
+                className="search-clear" 
+                onClick={() => {
+                  setSearchQuery("");
+                  setFilter("");
+                }}
+                aria-label="Limpar pesquisa"
+              >
+                ✕
+              </button>
+            )}
+          </label>
+          
+          {isSearchFocused && searchQuery.trim().length > 0 && (
+            <div className="search-dropdown" style={{
+              position: "absolute",
+              top: "100%",
+              left: 0,
+              right: 0,
+              background: "#111820",
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              marginTop: "4px",
+              maxHeight: "300px",
+              overflowY: "auto",
+              zIndex: 10,
+              display: "flex"
+            }}>
+              <div style={{ flex: 1, padding: "8px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+                <h4 style={{ margin: "0 0 8px 0", fontSize: "0.8rem", color: "#8a96a3", textTransform: "uppercase" }}>Linhas</h4>
+                {searchLineSuggestions.length === 0 ? (
+                  <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: 0 }}>Sem resultados</p>
+                ) : (
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {searchLineSuggestions.map(line => {
+                      const theme = getLineTheme(line.number);
+                      return (
+                        <li key={line.id}>
+                          <button
+                            style={{
+                              width: "100%",
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "8px",
+                              padding: "6px",
+                              background: "transparent",
+                              border: "none",
+                              color: "white",
+                              cursor: "pointer",
+                              textAlign: "left",
+                              borderRadius: "4px"
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                            onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                            onClick={() => {
+                              setFilter(line.id);
+                              setSearchQuery(line.id);
+                            }}
+                          >
+                            <span style={{ 
+                              background: theme.color, 
+                              color: theme.text,
+                              padding: "2px 6px",
+                              borderRadius: "4px",
+                              fontWeight: "bold",
+                              fontSize: "0.8rem"
+                            }}>
+                              {line.id}
+                            </span>
+                            <span style={{ fontSize: "0.85rem", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                              {line.name}
+                            </span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+              <div style={{ flex: 1, padding: "8px" }}>
+                <h4 style={{ margin: "0 0 8px 0", fontSize: "0.8rem", color: "#8a96a3", textTransform: "uppercase" }}>Paragens</h4>
+                {searchStopSuggestions.length === 0 ? (
+                  <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: 0 }}>Sem resultados</p>
+                ) : (
+                  <ul style={{ listStyle: "none", margin: 0, padding: 0, display: "flex", flexDirection: "column", gap: "4px" }}>
+                    {searchStopSuggestions.map(stop => (
+                      <li key={stop.id}>
+                        <button
+                          style={{
+                            width: "100%",
+                            padding: "6px",
+                            background: "transparent",
+                            border: "none",
+                            color: "white",
+                            cursor: "pointer",
+                            textAlign: "left",
+                            borderRadius: "4px"
+                          }}
+                          onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
+                          onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
+                          onClick={() => {
+                            setSearchQuery("");
+                            mapRef.current?.easeTo({
+                              center: [stop.lon, stop.lat],
+                              zoom: 15.5,
+                              duration: 700
+                            });
+                          }}
+                        >
+                          <div style={{ fontWeight: "bold", fontSize: "0.85rem" }}>{stop.name}</div>
+                          <div style={{ fontSize: "0.75rem", color: "#8a96a3" }}>{stop.id}</div>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {mode === "bus" ? (
+        <section className="line-rail" aria-label="Filtro rápido por linha">
+          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", marginBottom: "6px" }}>
+            <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "auto", padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", gap: "6px" }}>
+              <span aria-hidden="true">≡</span>
+              <span>Paragens</span>
+            </button>
+            <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar" style={{ width: "auto", flex: "0 0 32px", height: "32px", borderLeftWidth: "1px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+              <RefreshIcon />
+            </button>
+          </div>
+          <button onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} style={{ width: "100%", padding: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "#fff", cursor: "pointer", border: "none", marginBottom: "8px", display: "flex", justifyContent: "center" }}>
+            <ChevronIcon expanded={!isLinesFilterExpanded} />
+          </button>
+          <span>Filtrar por</span>
+          <button className={!filter ? "is-active" : ""} onClick={() => setFilter("")}>
+            Todas
+          </button>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+            {(isLinesFilterExpanded ? railLines : favoriteLineNumbers.filter(l => railLines.includes(l))).map((line) => {
+              const lineTheme = getLineTheme(line);
+              const isActive = filter === line;
+              const isFavorite = favoriteLineNumbers.includes(line);
+
+              return (
+                <button
+                  key={line}
+                  className={isActive ? "is-active" : ""}
+                  onClick={() => setFilter(isActive ? "" : line)}
+                  style={{
+                    borderColor: isActive ? lineTheme.color : undefined,
+                    borderLeftColor: lineTheme.color,
+                    background: isActive ? lineTheme.color : undefined,
+                    color: isActive ? lineTheme.text : undefined
+                  }}
+                  title={`Mostrar linha ${line}`}
+                >
+                  {isFavorite ? `★ ${line}` : line}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
 
       {favoriteResult ? (
         <article className="favorite-result-card" aria-label="Resultado do favorito">
@@ -3997,14 +4218,15 @@ export default function BusMap() {
 
               {!linesLoading && !linesError
                 ? filteredTransitLines.map((line) => {
-                    const activeVehicles = getActiveVehicleCountForLine(line.number);
+                    const lineTheme = getLineTheme(line.id);
+                    const activeVehicles = getActiveVehicleCountForLine(line.id);
                     const isExpanded = expandedLineId === line.id;
 
                     return (
-                      <article className="line-card" key={line.id}>
-                        <button className="line-card-summary" onClick={() => setExpandedLineId(isExpanded ? null : line.id)}>
-                          <span className="line-badge" style={{ background: line.color, color: line.text_color }}>
-                            {line.number}
+                      <article className={`line-card ${isExpanded ? "is-expanded" : ""}`} key={line.id}>
+                        <button className="line-card-header" onClick={() => setExpandedLineId(isExpanded ? null : line.id)}>
+                          <span className="line-number" style={{ background: lineTheme.color, color: lineTheme.text }}>
+                            {line.id}
                           </span>
                           <span className="line-card-title">
                             <strong>{line.name}</strong>
