@@ -197,6 +197,18 @@ type StopArrival = {
   textColor: string;
 };
 
+type SearchSuggestion = {
+  id: string;
+  label: string;
+  detail: string;
+  lineNumber?: string;
+  stop?: {
+    id: string;
+    name: string;
+    coordinate: [number, number];
+  };
+};
+
 type FavoriteResult = {
   lineNumber: string;
   headsign: string;
@@ -238,7 +250,14 @@ function MetroLogo() {
 }
 
 function RefreshIcon() {
-  return <span className="icon-refresh" aria-hidden="true" />;
+  return (
+    <svg className="icon-svg" viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M20 11a8 8 0 0 0-14.5-4.7L4 8" />
+      <path d="M4 4v4h4" />
+      <path d="M4 13a8 8 0 0 0 14.5 4.7L20 16" />
+      <path d="M20 20v-4h-4" />
+    </svg>
+  );
 }
 
 function SendIcon() {
@@ -270,11 +289,14 @@ export default function BusMap() {
   const lastRenderRef = useRef(0);
 
   const [filter, setFilter] = useState("");
+  const [searchFocused, setSearchFocused] = useState(false);
+  const [lineRailCollapsed, setLineRailCollapsed] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
   const [vehicleCount, setVehicleCount] = useState(0);
   const [stopCount, setStopCount] = useState(0);
+  const [stopsPayload, setStopsPayload] = useState<StopsGeoJson | null>(null);
   const [metroStationCount, setMetroStationCount] = useState(0);
   const [metroLineCount, setMetroLineCount] = useState(0);
   const [estimatedTrainCount, setEstimatedTrainCount] = useState(0);
@@ -362,6 +384,82 @@ export default function BusMap() {
       ...availableLines.filter((line) => !favoriteLineNumbers.includes(line))
     ];
   }, [availableLines, favoriteLineNumbers]);
+
+  const visibleRailLines = useMemo(() => {
+    if (!lineRailCollapsed) return railLines;
+
+    return railLines.filter((line) => favoriteLineNumbers.includes(line));
+  }, [favoriteLineNumbers, lineRailCollapsed, railLines]);
+
+  const stopCoordinatesById = useMemo(() => {
+    const coordinates = new globalThis.Map<string, [number, number]>();
+    for (const feature of stopsPayload?.features ?? []) {
+      coordinates.set(feature.properties.id, feature.geometry.coordinates);
+    }
+    return coordinates;
+  }, [stopsPayload]);
+
+  const searchSuggestions = useMemo(() => {
+    const query = normalizeSearchText(filter);
+    const lines = linesPayload?.lines ?? [];
+    const stopFeatures = stopsPayload?.features ?? [];
+
+    if (query.length < 2) {
+      return { lines: [] as SearchSuggestion[], stops: [] as SearchSuggestion[] };
+    }
+
+    const lineSuggestions: SearchSuggestion[] = [];
+    const stopLineDetailsById = new globalThis.Map<string, string[]>();
+
+    for (const line of lines) {
+      const matchingDirections = line.directions.filter((direction) =>
+        normalizeSearchText(line.number).includes(query) ||
+        normalizeSearchText(line.name).includes(query) ||
+        normalizeSearchText(direction.headsign).includes(query)
+      );
+
+      for (const direction of matchingDirections.slice(0, 2)) {
+        lineSuggestions.push({
+          id: `line-${line.number}-${direction.direction_id}`,
+          label: `Linha ${line.number}`,
+          detail: direction.headsign || line.name,
+          lineNumber: line.number
+        });
+      }
+
+      for (const direction of line.directions) {
+        for (const stop of direction.stops) {
+          const detailLine = `${line.number} ${direction.headsign}`.trim();
+          const details = stopLineDetailsById.get(stop.stop_id) ?? [];
+          if (!details.some((entry) => entry.startsWith(line.number))) {
+            details.push(detailLine);
+          }
+          stopLineDetailsById.set(stop.stop_id, details);
+        }
+      }
+    }
+
+    const stopSuggestions = stopFeatures
+      .filter((feature) => normalizeSearchText(feature.properties.name).includes(query))
+      .map((feature) => {
+        const details = stopLineDetailsById.get(feature.properties.id) ?? [];
+        return {
+          id: `stop-${feature.properties.id}`,
+          label: feature.properties.name,
+          detail: details.slice(0, 4).join(", ") || "Paragem STCP",
+          stop: {
+            id: feature.properties.id,
+            name: feature.properties.name,
+            coordinate: feature.geometry.coordinates
+          }
+        };
+      });
+
+    return {
+      lines: lineSuggestions.slice(0, 6),
+      stops: stopSuggestions.slice(0, 7)
+    };
+  }, [filter, linesPayload, stopsPayload]);
 
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
@@ -1720,6 +1818,8 @@ export default function BusMap() {
   }
 
   function stopCoordinate(stop: TransitStop): [number, number] {
+    const mappedCoordinate = stopCoordinatesById.get(stop.stop_id);
+    if (mappedCoordinate) return mappedCoordinate;
     return [stop.longitude, stop.latitude];
   }
 
@@ -1806,7 +1906,8 @@ export default function BusMap() {
   }
 
   function renderVehicles(lineFilter: string, now = performance.now()) {
-    const source = mapRef.current?.getSource(BUS_SOURCE_ID) as GeoJSONSource | undefined;
+    const map = mapRef.current;
+    const source = map?.getSource(BUS_SOURCE_ID) as GeoJSONSource | undefined;
     if (!source) return;
 
     const normalizedLineFilter = lineFilter.toLowerCase();
@@ -1837,6 +1938,8 @@ export default function BusMap() {
       }
 
       const lineTheme = getLineTheme(animated.current.line_number);
+      const iconId = getBusIconId(animated.current.line_number, lineTheme.color);
+      if (map) ensureBusIconImage(map, iconId, lineTheme.color);
 
       features.push({
         type: "Feature",
@@ -1849,7 +1952,7 @@ export default function BusMap() {
           line_number: animated.current.line_number,
           bearing: vehicle.bearing,
           opacity: getVehicleOpacity(animated.current),
-          icon_id: getBusIconId(animated.current.line_number),
+          icon_id: iconId,
           line_color: lineTheme.color,
           text_color: lineTheme.text
         }
@@ -1889,6 +1992,7 @@ export default function BusMap() {
 
     const stops = (await response.json()) as StopsGeoJson;
     setStopCount(stops.features.length);
+    setStopsPayload(stops);
 
     if (map.getSource(STOPS_SOURCE_ID)) {
       const source = map.getSource(STOPS_SOURCE_ID) as GeoJSONSource | undefined;
@@ -2422,6 +2526,9 @@ export default function BusMap() {
       map.on("click", BUS_LAYER_ID, (event) => {
         const vehicleId = event.features?.[0]?.properties?.vehicle_id;
         if (typeof vehicleId === "string") {
+          if (routeOverlayOwnerRef.current === "stop") {
+            clearSelectedRouteOverlay();
+          }
           setSelectedId(vehicleId);
         }
       });
@@ -2987,6 +3094,15 @@ export default function BusMap() {
   }
 
   function getLineTheme(lineNumber: string) {
+    const line = linesPayload?.lines.find((entry) => entry.number === lineNumber || entry.id === lineNumber);
+    if (line?.color) {
+      return {
+        key: line.number,
+        color: normalizeHexColor(line.color, "#7de0d4"),
+        text: normalizeHexColor(line.text_color, getReadableTextColor(line.color))
+      };
+    }
+
     const familyKey = getLineFamilyKey(lineNumber);
     return BUS_LINE_FAMILIES.find((family) => family.key === familyKey) ?? BUS_LINE_FAMILIES[BUS_LINE_FAMILIES.length - 1];
   }
@@ -2999,8 +3115,30 @@ export default function BusMap() {
     return family >= 100 && family <= 900 ? String(family) : "other";
   }
 
-  function getBusIconId(lineNumber: string) {
-    return `${BUS_ICON_PREFIX}-${getLineFamilyKey(lineNumber)}`;
+  function getBusIconId(lineNumber: string, color: string) {
+    return `${BUS_ICON_PREFIX}-line-${lineNumber.replace(/[^a-z0-9-]/gi, "-").toLowerCase()}-${color.replace(/[^a-z0-9]/gi, "").toLowerCase()}`;
+  }
+
+  function ensureBusIconImage(map: MapLibreMap, iconId: string, color: string) {
+    if (map.hasImage(iconId)) return;
+    map.addImage(iconId, createBusIconImageData(color), { pixelRatio: 2 });
+  }
+
+  function normalizeHexColor(value: string | undefined, fallback: string) {
+    if (!value) return fallback;
+    const trimmed = value.trim();
+    if (/^#[0-9a-f]{6}$/i.test(trimmed)) return trimmed;
+    if (/^[0-9a-f]{6}$/i.test(trimmed)) return `#${trimmed}`;
+    return fallback;
+  }
+
+  function getReadableTextColor(background: string | undefined) {
+    const color = normalizeHexColor(background, "#7de0d4").replace("#", "");
+    const r = Number.parseInt(color.slice(0, 2), 16);
+    const g = Number.parseInt(color.slice(2, 4), 16);
+    const b = Number.parseInt(color.slice(4, 6), 16);
+    const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+    return luminance > 0.58 ? "#06100f" : "#ffffff";
   }
 
   function syncVehiclePopup(vehicle: VehiclePosition | null) {
@@ -3013,7 +3151,7 @@ export default function BusMap() {
     }
 
     const lineTheme = getLineTheme(vehicle.line_number);
-    const popupHtml = createVehiclePopupHtml(vehicle, lineTheme.color);
+    const popupHtml = createVehiclePopupHtml(vehicle, lineTheme.color, getVehicleDisplayInfo(vehicle));
 
     if (!popupRef.current) {
       popupRef.current = new maplibregl.Popup({
@@ -3145,7 +3283,7 @@ export default function BusMap() {
     directionOverride?: 1 | -1
   ) {
     const vehicleProjection = projectVehicleToShape(vehicle, shape);
-    const stopProjection = projectCoordinateToShape([stop.longitude, stop.latitude], shape);
+    const stopProjection = projectCoordinateToShape(stopCoordinate(stop), shape);
     const animated = vehiclesRef.current.get(vehicle.vehicle_id);
     const direction = directionOverride ?? animated?.routeMotion?.direction ?? 1;
     const distanceMeters =
@@ -3228,6 +3366,13 @@ export default function BusMap() {
   ) {
     const map = mapRef.current;
     if (!map) return;
+
+    routeOverlayOwnerRef.current = "stop";
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    popupRef.current?.remove();
+    popupRef.current = null;
+    popupHtmlRef.current = "";
 
     const stopName = String(properties.name ?? "Paragem");
     const lineNumber = String(properties.line_number ?? "");
@@ -3334,10 +3479,14 @@ export default function BusMap() {
     stopPopupRef.current = null;
   }
 
-  function createVehiclePopupHtml(vehicle: VehiclePosition, lineColor: string) {
+  function createVehiclePopupHtml(
+    vehicle: VehiclePosition,
+    lineColor: string,
+    displayInfo: { headsign: string; nextStop: string; eta: string }
+  ) {
     const vehicleNumber = vehicle.vehicle_id.replace(/^stcp-/, "");
-    const nextStop = escapeHtml(vehicle.next_stop_name ?? vehicle.next_stop_id ?? "Não disponível");
-    const eta = vehicle.next_stop_eta_min === null ? "ETA não disponível" : `${vehicle.next_stop_eta_min} min até à próxima`;
+    const nextStop = escapeHtml(displayInfo.nextStop);
+    const eta = displayInfo.eta;
     const gpsTime = new Date(vehicle.updated_at).toLocaleTimeString("pt-PT");
     const speed = vehicle.speed === null ? "" : `${Math.round(vehicle.speed * 3.6)} km/h`;
 
@@ -3345,7 +3494,7 @@ export default function BusMap() {
       <article class="vehicle-popover" style="--line-color: ${lineColor}">
         <header>
           <strong>${escapeHtml(vehicle.line_number)}</strong>
-          <span>${nextStop}</span>
+          <span>${escapeHtml(displayInfo.headsign)}</span>
         </header>
         <div class="vehicle-popover-body">
           <p><span class="popup-dot">P</span><b>Próxima:</b> ${nextStop}</p>
@@ -3355,6 +3504,49 @@ export default function BusMap() {
         </div>
       </article>
     `;
+  }
+
+  function getVehicleDisplayInfo(vehicle: VehiclePosition) {
+    const line = linesPayload?.lines.find((entry) => entry.number === vehicle.line_number || entry.id === vehicle.line_number);
+    const direction = vehicle.direction_id
+      ? line?.directions.find((entry) => entry.direction_id === vehicle.direction_id)
+      : line?.directions[0];
+    const shape = getShapeForVehicle(vehicle);
+    const nextStop = direction && shape ? getProjectedNextStop(vehicle, direction.stops, shape) : null;
+    const estimate = nextStop && shape ? getStopArrivalEstimate(vehicle, nextStop, shape) : null;
+
+    return {
+      headsign: direction?.headsign || vehicle.next_stop_name || "Sentido não disponível",
+      nextStop: nextStop?.stop_name || vehicle.next_stop_name || vehicle.next_stop_id || "Não disponível",
+      eta: estimate
+        ? `${estimate.label} até à próxima`
+        : vehicle.next_stop_eta_min === null
+          ? "ETA não disponível"
+          : `${vehicle.next_stop_eta_min} min até à próxima`
+    };
+  }
+
+  function getProjectedNextStop(vehicle: VehiclePosition, stops: TransitStop[], shape: RouteShape) {
+    const vehicleProjection = projectVehicleToShape(vehicle, shape);
+    let bestStop: TransitStop | null = null;
+    let bestDistance = Number.POSITIVE_INFINITY;
+
+    for (const stop of stops) {
+      const stopProjection = projectCoordinateToShape(stopCoordinate(stop), shape);
+      const forwardDistance = getForwardDistance(
+        vehicleProjection.distanceAlongShapeMeters,
+        stopProjection.distanceAlongShapeMeters,
+        shape.totalMeters
+      );
+
+      if (forwardDistance < 35) continue;
+      if (forwardDistance < bestDistance) {
+        bestDistance = forwardDistance;
+        bestStop = stop;
+      }
+    }
+
+    return bestStop ?? stops[0] ?? null;
   }
 
   function escapeHtml(value: string) {
@@ -3372,6 +3564,29 @@ export default function BusMap() {
       if (vehicle.current.line_number === lineNumber) count += 1;
     }
     return count;
+  }
+
+  function handleSearchSuggestion(suggestion: SearchSuggestion) {
+    setSearchFocused(false);
+
+    if (suggestion.lineNumber) {
+      setFilter(suggestion.lineNumber);
+      return;
+    }
+
+    if (suggestion.stop) {
+      setFilter(suggestion.stop.name);
+      setMode("bus");
+      mapRef.current?.easeTo({
+        center: suggestion.stop.coordinate,
+        zoom: 15.3,
+        duration: 700
+      });
+      void showStopOverviewPopup(suggestion.stop.coordinate, {
+        id: suggestion.stop.id,
+        name: suggestion.stop.name
+      });
+    }
   }
 
   function lineMatchesSearch(lineNumber: string, normalizedQuery: string) {
@@ -3454,17 +3669,6 @@ export default function BusMap() {
               </button>
             </div>
           </div>
-          {mode === "bus" ? (
-            <div className="bus-controls">
-              <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar">
-                <RefreshIcon />
-              </button>
-              <button className="lines-button" onClick={() => setLinesOpen(true)}>
-                <span aria-hidden="true">≡</span>
-                Paragens
-              </button>
-            </div>
-          ) : null}
         </section>
 
         {mode === "metro" ? (
@@ -3480,20 +3684,76 @@ export default function BusMap() {
             <span className="search-inline-icon" aria-hidden="true" />
             <input
               value={filter}
+              onFocus={() => setSearchFocused(true)}
+              onBlur={() => window.setTimeout(() => setSearchFocused(false), 160)}
               onChange={(event) => setFilter(event.target.value)}
               placeholder="Linha / Paragem"
             />
+            {searchFocused && (searchSuggestions.lines.length > 0 || searchSuggestions.stops.length > 0) ? (
+              <div className="map-search-suggestions">
+                <div className="suggestion-column">
+                  <strong>Linhas</strong>
+                  {searchSuggestions.lines.length ? (
+                    searchSuggestions.lines.map((suggestion) => (
+                      <button
+                        type="button"
+                        key={suggestion.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleSearchSuggestion(suggestion)}
+                      >
+                        <span>{suggestion.label}</span>
+                        <small>{suggestion.detail}</small>
+                      </button>
+                    ))
+                  ) : (
+                    <p>Sem linhas</p>
+                  )}
+                </div>
+                <div className="suggestion-column">
+                  <strong>Paragens</strong>
+                  {searchSuggestions.stops.length ? (
+                    searchSuggestions.stops.map((suggestion) => (
+                      <button
+                        type="button"
+                        key={suggestion.id}
+                        onMouseDown={(event) => event.preventDefault()}
+                        onClick={() => handleSearchSuggestion(suggestion)}
+                      >
+                        <span>{suggestion.label}</span>
+                        <small>{suggestion.detail}</small>
+                      </button>
+                    ))
+                  ) : (
+                    <p>Sem paragens</p>
+                  )}
+                </div>
+              </div>
+            ) : null}
           </label>
         </section>
       ) : null}
 
       {mode === "bus" ? (
-        <section className="line-rail" aria-label="Filtro rápido por linha">
-          <span>Filtrar por</span>
-          <button className={!filter ? "is-active" : ""} onClick={() => setFilter("")}>
-            Todas
+        <section className={lineRailCollapsed ? "line-rail is-collapsed" : "line-rail"} aria-label="Filtro rápido por linha">
+          <button className="line-rail-toggle" type="button" onClick={() => setLineRailCollapsed((collapsed) => !collapsed)}>
+            <span>Filtrar por</span>
+            <span className="chevron" aria-hidden="true" />
           </button>
-          {railLines.map((line) => {
+          <div className="line-rail-actions">
+            <button className="lines-button" onClick={() => setLinesOpen(true)}>
+              <span aria-hidden="true">≡</span>
+              Paragens
+            </button>
+            <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar">
+              <RefreshIcon />
+            </button>
+          </div>
+          {!lineRailCollapsed ? (
+            <button className={!filter ? "is-active" : ""} onClick={() => setFilter("")}>
+              Todas
+            </button>
+          ) : null}
+          {visibleRailLines.map((line) => {
             const lineTheme = getLineTheme(line);
             const isActive = filter === line;
             const isFavorite = favoriteLineNumbers.includes(line);
@@ -3504,10 +3764,9 @@ export default function BusMap() {
                 className={isActive ? "is-active" : ""}
                 onClick={() => setFilter(isActive ? "" : line)}
                 style={{
-                  borderColor: isActive ? lineTheme.color : undefined,
                   borderLeftColor: lineTheme.color,
-                  background: isActive ? lineTheme.color : undefined,
-                  color: isActive ? lineTheme.text : undefined
+                  ["--line-color" as string]: lineTheme.color,
+                  color: isActive ? "#f6f8fb" : undefined
                 }}
                 title={`Mostrar linha ${line}`}
               >
