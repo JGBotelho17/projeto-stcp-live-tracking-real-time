@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.DS_Store
+*.log
+*.zip
+brand-logo-source/
+apps/backend/dist/
+apps/frontend/dist/
