@@ -3402,7 +3402,8 @@ export default function BusMap() {
     const lineData = linesPayload?.lines.find(l => l.number === vehicle.line_number || l.id === vehicle.line_number);
     const resolvedLineNumber = lineData ? lineData.number : vehicle.line_number;
     const directionData = lineData?.directions.find((direction) => direction.direction_id === vehicle.direction_id) ?? null;
-    const directionTerminalStop = directionData?.stops.at(-1)?.stop_name ?? directionData?.headsign ?? "Direção não disponível";
+    const lastStop = directionData?.stops[directionData.stops.length - 1] ?? null;
+    const directionTerminalStop = lastStop?.stop_name ?? directionData?.headsign ?? "Direção não disponível";
     const nextStop = escapeHtml(vehicle.next_stop_name ?? vehicle.next_stop_id ?? "Não disponível");
     const directionLabel = escapeHtml(directionTerminalStop);
     const eta = vehicle.next_stop_eta_min === null ? "ETA não disponível" : `${vehicle.next_stop_eta_min} min até à próxima`;
@@ -3533,8 +3534,9 @@ export default function BusMap() {
   }, [searchQuery, linesPayload]);
 
   return (
-    <main className="shell">
-      <div ref={mapContainerRef} className="map" />
+    <div className="mobile-device-preview" aria-label="Pré-visualização mobile">
+      <main className="shell">
+        <div ref={mapContainerRef} className="map" />
 
       <div className="top-stack">
         <section className="topbar" aria-label="Controlos do mapa">
@@ -4305,6 +4307,7 @@ export default function BusMap() {
         </div>
       ) : null}
 
-    </main>
+      </main>
+    </div>
   );
 }
