@@ -150,6 +150,30 @@ input {
   margin-top: 10px;
 }
 
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topbar-refresh-button {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 14%);
+  border-radius: 6px;
+  color: #d8e0e8;
+  background: #111820;
+  cursor: pointer;
+}
+
+.topbar-refresh-button:hover {
+  border-color: rgb(125 224 212 / 42%);
+  color: #ffffff;
+  background: #162231;
+}
+
 .mode-tabs button {
   display: grid;
   width: 82px;
@@ -2075,10 +2099,10 @@ h2 {
 }
 
 .mobile-device-preview .topbar > div {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  gap: 7px;
 }
 
 .mobile-device-preview .topbar .eyebrow {
@@ -2088,14 +2112,19 @@ h2 {
 }
 
 .mobile-device-preview .topbar h1 {
-  max-width: 150px;
+  max-width: 112px;
   font-size: 0.98rem;
   line-height: 1.08;
 }
 
+.mobile-device-preview .topbar-actions {
+  gap: 5px;
+  justify-self: end;
+}
+
 .mobile-device-preview .mode-tabs {
   flex: 0 0 auto;
-  gap: 5px;
+  gap: 3px;
   margin: 0;
   padding: 3px;
   border: 1px solid rgb(255 255 255 / 10%);
@@ -2105,7 +2134,7 @@ h2 {
 
 .mobile-device-preview .mode-tabs button {
   display: grid;
-  width: 58px;
+  width: 42px;
   min-height: 34px;
   place-items: center;
   border-radius: 999px;
@@ -2120,14 +2149,27 @@ h2 {
 
 .mobile-device-preview .transport-logo {
   display: block;
-  width: 54px;
+  width: 38px;
   height: 22px;
   margin: 0 auto;
   object-fit: contain;
 }
 
 .mobile-device-preview .metro-wordmark {
-  width: 28px;
+  width: 22px;
+}
+
+.mobile-device-preview .topbar-refresh-button {
+  width: 32px;
+  height: 32px;
+  border-radius: 999px;
+  color: #9ee8df;
+  background: rgb(255 255 255 / 6%);
+}
+
+.mobile-device-preview .topbar-refresh-button svg {
+  width: 17px;
+  height: 17px;
 }
 
 .mobile-device-preview .floating-search {
@@ -2210,7 +2252,21 @@ h2 {
 }
 
 .mobile-device-preview .line-rail-actions {
-  grid-template-columns: minmax(0, 1fr) 38px;
+  display: block;
+}
+
+.mobile-device-preview .line-rail-title {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  color: #f6f8fb;
+  background: rgb(255 255 255 / 7%);
+  font-size: 0.78rem;
+  font-weight: 900;
 }
 
 .mobile-device-preview .line-rail-toggle {

@@ -429,7 +429,7 @@ export default function BusMap() {
     ];
   }, [availableLines, favoriteLineNumbers]);
 
-  const visibleRailLines = isLinesFilterExpanded || favoriteLineNumbers.length === 0 ? railLines : favoriteLineNumbers;
+  const visibleRailLines = isLinesFilterExpanded ? railLines : favoriteLineNumbers;
 
   function toggleSelectedLineFilter(lineNumber: string) {
     setSelectedLineFilters((current) =>
@@ -3684,26 +3684,30 @@ export default function BusMap() {
           <div>
             <p className="eyebrow">STCP Live</p>
             <h1>{mode === "bus" ? "Radar de autocarros" : "Metro do Porto"}</h1>
-            <div className="mode-tabs" aria-label="Modo de transporte">
-              <button
-                className={mode === "bus" ? "is-active" : ""}
-                onClick={() => setMode("bus")}
-                aria-label="Autocarros STCP"
-                title="Autocarros STCP"
-              >
-                <StcpLogo />
-              </button>
-              <button
-                className={mode === "metro" ? "is-active" : ""}
-                onClick={() => setMode("metro")}
-                aria-label="Metro do Porto"
-                title="Metro do Porto"
-              >
-                <MetroLogo />
+            <div className="topbar-actions">
+              <div className="mode-tabs" aria-label="Modo de transporte">
+                <button
+                  className={mode === "bus" ? "is-active" : ""}
+                  onClick={() => setMode("bus")}
+                  aria-label="Autocarros STCP"
+                  title="Autocarros STCP"
+                >
+                  <StcpLogo />
+                </button>
+                <button
+                  className={mode === "metro" ? "is-active" : ""}
+                  onClick={() => setMode("metro")}
+                  aria-label="Metro do Porto"
+                  title="Metro do Porto"
+                >
+                  <MetroLogo />
+                </button>
+              </div>
+              <button className="topbar-refresh-button" type="button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar dados" title="Atualizar dados">
+                <RefreshIcon />
               </button>
             </div>
           </div>
-
         </section>
 
       {mode === "bus" && journeyOpen && activeMobilePanel === "journey" ? (
@@ -4056,24 +4060,9 @@ export default function BusMap() {
         <section className={activeMobilePanel === "stops" ? "line-rail is-mobile-panel-open" : "line-rail"} aria-label={"Filtro r\u00e1pido por linha"}>
           <div className="line-rail-header">
             <div className="line-rail-actions">
-              <button
-                className="lines-button is-active"
-                onClick={() => {
-                  setActiveMobilePanel("navigation");
-                  setLinesOpen(true);
-                  setIsJourneyExpanded(false);
-                  setIsSearchFocused(false);
-                  setSettingsOpen(false);
-                  searchInputRef.current?.blur();
-                }}
-                style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}
-              >
-                <span aria-hidden="true">≡</span>
-                <span>{"Navega\u00e7\u00e3o"}</span>
-              </button>
-              <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar" style={{ width: "auto", flex: "0 0 32px", height: "32px", borderLeftWidth: "1px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-                <RefreshIcon />
-              </button>
+              <div className="line-rail-title">
+                <span>Paragens</span>
+              </div>
             </div>
             <button className="line-rail-toggle" onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} aria-label={isLinesFilterExpanded ? "Fechar lista de linhas" : "Abrir lista de linhas"}>
               <ChevronIcon expanded={!isLinesFilterExpanded} />
