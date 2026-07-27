@@ -2169,12 +2169,12 @@ h2 {
 
 .mobile-device-preview .mode-tabs button {
   display: grid;
-  width: 32px;
-  min-height: 32px;
+  width: 38px;
+  min-height: 38px;
   place-items: center;
   border: 1px solid rgb(255 255 255 / 14%);
   border-radius: 999px;
-  padding: 3px;
+  padding: 0;
   background: rgb(255 255 255 / 6%);
 }
 
@@ -2185,27 +2185,31 @@ h2 {
 
 .mobile-device-preview .transport-logo {
   display: block;
-  width: 27px;
-  height: 18px;
-  margin: 0 auto;
+  width: 34px;
+  height: 24px;
+  margin: auto;
   object-fit: contain;
 }
 
 .mobile-device-preview .metro-wordmark {
-  width: 18px;
+  width: 25px;
+  height: 25px;
 }
 
 .mobile-device-preview .topbar-refresh-button {
-  width: 32px;
-  height: 32px;
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
   border-radius: 999px;
   color: #9ee8df;
   background: rgb(255 255 255 / 6%);
+  padding: 0;
 }
 
 .mobile-device-preview .topbar-refresh-button svg {
-  width: 17px;
-  height: 17px;
+  width: 21px;
+  height: 21px;
 }
 
 .mobile-device-preview .floating-search {
