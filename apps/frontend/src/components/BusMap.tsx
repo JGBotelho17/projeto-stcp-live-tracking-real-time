@@ -436,6 +436,103 @@ export default function BusMap() {
   }, []);
 
   useEffect(() => {
+    const root = document.querySelector(".mobile-device-preview");
+    if (!root) return;
+
+    const scrollableSelector = [
+      ".journey-card",
+      ".line-rail-list",
+      ".search-dropdown",
+      ".journey-suggestions",
+      ".lines-modal-body",
+      ".line-direction ol",
+      ".info-modal-body"
+    ].join(", ");
+    const textInputSelector = "input, textarea, select";
+
+    let scrollTarget: HTMLElement | null = null;
+    let startX = 0;
+    let startY = 0;
+    let startScrollLeft = 0;
+    let startScrollTop = 0;
+    let didDrag = false;
+    let suppressNextClick = false;
+
+    const stopDrag = () => {
+      scrollTarget = null;
+      root.classList.remove("is-touch-dragging");
+      window.removeEventListener("pointermove", onPointerMove);
+      window.removeEventListener("pointerup", onPointerUp);
+      window.removeEventListener("pointercancel", onPointerUp);
+    };
+
+    const onPointerMove = (event: PointerEvent) => {
+      if (!scrollTarget) return;
+
+      const deltaX = event.clientX - startX;
+      const deltaY = event.clientY - startY;
+      if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
+        didDrag = true;
+        suppressNextClick = true;
+      }
+
+      if (didDrag) {
+        event.preventDefault();
+        scrollTarget.scrollLeft = startScrollLeft - deltaX;
+        scrollTarget.scrollTop = startScrollTop - deltaY;
+      }
+    };
+
+    const onPointerUp = () => {
+      stopDrag();
+    };
+
+    const onPointerDown = (event: Event) => {
+      const pointerEvent = event as PointerEvent;
+      if (pointerEvent.pointerType !== "mouse" || pointerEvent.button !== 0) return;
+
+      const target = pointerEvent.target instanceof HTMLElement ? pointerEvent.target : null;
+      if (!target || target.closest(textInputSelector)) return;
+
+      const candidate = target.closest(scrollableSelector) as HTMLElement | null;
+      if (!candidate) return;
+
+      const canScroll =
+        candidate.scrollHeight > candidate.clientHeight ||
+        candidate.scrollWidth > candidate.clientWidth;
+      if (!canScroll) return;
+
+      scrollTarget = candidate;
+      startX = pointerEvent.clientX;
+      startY = pointerEvent.clientY;
+      startScrollLeft = candidate.scrollLeft;
+      startScrollTop = candidate.scrollTop;
+      didDrag = false;
+      root.classList.add("is-touch-dragging");
+
+      window.addEventListener("pointermove", onPointerMove, { passive: false });
+      window.addEventListener("pointerup", onPointerUp);
+      window.addEventListener("pointercancel", onPointerUp);
+    };
+
+    const onClickCapture = (event: Event) => {
+      if (!suppressNextClick) return;
+      suppressNextClick = false;
+      event.preventDefault();
+      event.stopPropagation();
+    };
+
+    root.addEventListener("pointerdown", onPointerDown);
+    root.addEventListener("click", onClickCapture, true);
+
+    return () => {
+      stopDrag();
+      root.removeEventListener("pointerdown", onPointerDown);
+      root.removeEventListener("click", onClickCapture, true);
+    };
+  }, []);
+
+  useEffect(() => {
     renderUserLocation();
   }, [userLocation]);
 

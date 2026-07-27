@@ -1917,6 +1917,57 @@ h2 {
 
 .mobile-device-preview .shell {
   isolation: isolate;
+  cursor: grab;
+  touch-action: manipulation;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.mobile-device-preview.is-touch-dragging .shell {
+  cursor: grabbing;
+}
+
+.mobile-device-preview input,
+.mobile-device-preview textarea {
+  cursor: text;
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.mobile-device-preview button,
+.mobile-device-preview select {
+  cursor: pointer;
+}
+
+.mobile-device-preview .maplibregl-canvas {
+  cursor: grab !important;
+}
+
+.mobile-device-preview .maplibregl-canvas:active,
+.mobile-device-preview.is-touch-dragging .maplibregl-canvas {
+  cursor: grabbing !important;
+}
+
+.mobile-device-preview .journey-card,
+.mobile-device-preview .line-rail-list,
+.mobile-device-preview .search-dropdown,
+.mobile-device-preview .journey-suggestions,
+.mobile-device-preview .lines-modal-body,
+.mobile-device-preview .line-direction ol,
+.mobile-device-preview .info-modal-body {
+  cursor: grab;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.mobile-device-preview.is-touch-dragging .journey-card,
+.mobile-device-preview.is-touch-dragging .line-rail-list,
+.mobile-device-preview.is-touch-dragging .search-dropdown,
+.mobile-device-preview.is-touch-dragging .journey-suggestions,
+.mobile-device-preview.is-touch-dragging .lines-modal-body,
+.mobile-device-preview.is-touch-dragging .line-direction ol,
+.mobile-device-preview.is-touch-dragging .info-modal-body {
+  cursor: grabbing;
 }
 
 .mobile-device-preview .map::after {
