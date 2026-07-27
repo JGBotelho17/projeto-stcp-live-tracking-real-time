@@ -270,6 +270,16 @@ function TrashIcon() {
   return <span className="icon-trash" aria-hidden="true" />;
 }
 
+function NavInfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v6" />
+      <path d="M12 7h.01" />
+    </svg>
+  );
+}
+
 function NavRouteIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -4207,7 +4217,7 @@ export default function BusMap() {
           aria-label={"Navega\u00e7\u00e3o: linhas favoritas"}
           title={"Navega\u00e7\u00e3o"}
         >
-          <NavRouteIcon />
+          <NavInfoIcon />
           <span>{"Navega\u00e7\u00e3o"}</span>
         </button>
         <button
@@ -4227,7 +4237,7 @@ export default function BusMap() {
           aria-label="Percurso"
           title="Percurso"
         >
-          <NavJourneyIcon />
+          <NavRouteIcon />
           <span>Percurso</span>
         </button>
         <button
