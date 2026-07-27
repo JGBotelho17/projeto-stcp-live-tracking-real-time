@@ -2111,6 +2111,13 @@ h2 {
   cursor: grab;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.mobile-device-preview .search-dropdown::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .mobile-device-preview.is-touch-dragging .journey-card,
