@@ -2141,7 +2141,7 @@ h2 {
 
 .mobile-device-preview .topbar {
   position: absolute;
-  top: 28px;
+  top: 58px;
   left: 16px;
   right: 16px;
   z-index: 5;
@@ -2234,7 +2234,7 @@ h2 {
 }
 
 .mobile-device-preview .floating-search {
-  top: 114px;
+  top: 144px;
   left: 16px;
   right: 16px;
   z-index: 6;
