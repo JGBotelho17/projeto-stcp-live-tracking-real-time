@@ -206,6 +206,8 @@ type FavoriteResult = {
   distanceLabel: string;
 };
 
+type MobilePanel = "navigation" | "journey" | "stops" | "settings" | null;
+
 function loadFavoriteLineNumbers() {
   if (typeof window === "undefined") return [];
 
@@ -289,11 +291,11 @@ function NavJourneyIcon() {
   );
 }
 
-function NavSearchIcon() {
+function NavStopsIcon() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="11" cy="11" r="6" />
-      <path d="m16 16 4 4" />
+      <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
     </svg>
   );
 }
@@ -332,6 +334,7 @@ export default function BusMap() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
@@ -3703,7 +3706,7 @@ export default function BusMap() {
 
         </section>
 
-      {mode === "bus" && journeyOpen ? (
+      {mode === "bus" && journeyOpen && activeMobilePanel === "journey" ? (
         <section className="journey-card" aria-label="Pesquisar caminho">
           <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -3909,7 +3912,13 @@ export default function BusMap() {
               ref={searchInputRef}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
-              onFocus={() => setIsSearchFocused(true)}
+              onFocus={() => {
+                setIsSearchFocused(true);
+                setActiveMobilePanel(null);
+                setLinesOpen(false);
+                setSettingsOpen(false);
+                setIsJourneyExpanded(false);
+              }}
               onBlur={() => setTimeout(() => setIsSearchFocused(false), 200)}
               placeholder="Pesquisar Linha ou Paragem..."
             />
@@ -3973,6 +3982,7 @@ export default function BusMap() {
                               setIsSearchFocused(false);
                               setIsJourneyExpanded(false);
                               setSettingsOpen(false);
+                              setActiveMobilePanel(null);
                             }}
                           >
                             <span style={{ 
@@ -4021,6 +4031,7 @@ export default function BusMap() {
                             setIsSearchFocused(false);
                             setIsJourneyExpanded(false);
                             setSettingsOpen(false);
+                            setActiveMobilePanel(null);
                             mapRef.current?.easeTo({
                               center: [stop.lon, stop.lat],
                               zoom: 15.5,
@@ -4042,12 +4053,13 @@ export default function BusMap() {
       ) : null}
 
       {mode === "bus" ? (
-        <section className="line-rail" aria-label="Filtro rápido por linha">
+        <section className={activeMobilePanel === "navigation" ? "line-rail is-mobile-panel-open" : "line-rail"} aria-label="Filtro rápido por linha">
           <div className="line-rail-header">
             <div className="line-rail-actions">
               <button
                 className="lines-button is-active"
                 onClick={() => {
+                  setActiveMobilePanel("stops");
                   setLinesOpen(true);
                   setIsJourneyExpanded(false);
                   setIsSearchFocused(false);
@@ -4140,13 +4152,14 @@ export default function BusMap() {
         </div>
       </section>
 
-      {settingsOpen ? (
+      {settingsOpen && activeMobilePanel === "settings" ? (
         <section className="mobile-settings-popover" aria-label="Definições rápidas">
           <button
             type="button"
             onClick={() => {
               setInfoDialog("about");
               setSettingsOpen(false);
+              setActiveMobilePanel(null);
             }}
           >
             Sobre
@@ -4160,6 +4173,7 @@ export default function BusMap() {
             onClick={() => {
               setInfoDialog("donate");
               setSettingsOpen(false);
+              setActiveMobilePanel(null);
             }}
           >
             Donativos
@@ -4173,32 +4187,36 @@ export default function BusMap() {
       <nav className="mobile-nav-pill" aria-label="Navegação principal mobile">
         <button
           type="button"
-          className={linesOpen ? "is-active" : ""}
+          className={activeMobilePanel === "navigation" ? "is-active" : ""}
           onClick={() => {
+            const shouldOpen = activeMobilePanel !== "navigation";
             setMode("bus");
-            setLinesOpen(true);
+            setLinesOpen(false);
             setIsJourneyExpanded(false);
             setIsSearchFocused(false);
             setSettingsOpen(false);
             searchInputRef.current?.blur();
+            setActiveMobilePanel(shouldOpen ? "navigation" : null);
           }}
-          aria-label="Navegação: linhas e paragens"
-          title="Linhas e paragens"
+          aria-label="Navegação: linhas favoritas"
+          title="Navegação"
         >
           <NavRouteIcon />
           <span>Navegação</span>
         </button>
         <button
           type="button"
-          className={journeyOpen && isJourneyExpanded && !linesOpen && !settingsOpen ? "is-active" : ""}
+          className={activeMobilePanel === "journey" ? "is-active" : ""}
           onClick={() => {
+            const shouldOpen = activeMobilePanel !== "journey";
             setMode("bus");
             setLinesOpen(false);
             setJourneyOpen(true);
-            setIsJourneyExpanded(true);
+            setIsJourneyExpanded(shouldOpen);
             setIsSearchFocused(false);
             setSettingsOpen(false);
             searchInputRef.current?.blur();
+            setActiveMobilePanel(shouldOpen ? "journey" : null);
           }}
           aria-label="Percurso"
           title="Percurso"
@@ -4208,32 +4226,34 @@ export default function BusMap() {
         </button>
         <button
           type="button"
-          className={isSearchFocused ? "is-active" : ""}
+          className={activeMobilePanel === "stops" && linesOpen ? "is-active" : ""}
           onClick={() => {
+            const shouldOpen = activeMobilePanel !== "stops" || !linesOpen;
             setMode("bus");
-            setLinesOpen(false);
+            setLinesOpen(shouldOpen);
             setIsJourneyExpanded(false);
+            setIsSearchFocused(false);
             setSettingsOpen(false);
-            window.setTimeout(() => {
-              searchInputRef.current?.focus();
-              setIsSearchFocused(true);
-            }, 0);
+            searchInputRef.current?.blur();
+            setActiveMobilePanel(shouldOpen ? "stops" : null);
           }}
-          aria-label="Pesquisar"
-          title="Pesquisar"
+          aria-label="Paragens"
+          title="Paragens"
         >
-          <NavSearchIcon />
-          <span>Pesquisar</span>
+          <NavStopsIcon />
+          <span>Paragens</span>
         </button>
         <button
           type="button"
-          className={settingsOpen ? "is-active" : ""}
+          className={activeMobilePanel === "settings" && settingsOpen ? "is-active" : ""}
           onClick={() => {
+            const shouldOpen = activeMobilePanel !== "settings" || !settingsOpen;
             setLinesOpen(false);
             setIsJourneyExpanded(false);
             setIsSearchFocused(false);
             searchInputRef.current?.blur();
-            setSettingsOpen((open) => !open);
+            setSettingsOpen(shouldOpen);
+            setActiveMobilePanel(shouldOpen ? "settings" : null);
           }}
           aria-label="Definições"
           title="Definições"
@@ -4410,14 +4430,14 @@ export default function BusMap() {
       ) : null}
 
       {linesOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setLinesOpen(false)}>
+        <div className="modal-backdrop" role="presentation" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }}>
           <section className="lines-modal" role="dialog" aria-modal="true" aria-label="Paragens e favoritos" onClick={(event) => event.stopPropagation()}>
             <header className="lines-modal-header">
               <div>
                 <p className="eyebrow">STCP</p>
                 <h2>Paragens</h2>
               </div>
-              <button className="modal-close" onClick={() => setLinesOpen(false)} aria-label="Fechar paragens">
+              <button className="modal-close" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }} aria-label="Fechar paragens">
                 x
               </button>
             </header>
@@ -4480,6 +4500,7 @@ export default function BusMap() {
                         onClick={() => {
                           handleFavoriteDirection(selectedFavoriteLineData, direction);
                           setLinesOpen(false);
+                          setActiveMobilePanel(null);
                         }}
                       >
                         <span>{direction.headsign}</span>
@@ -4545,6 +4566,7 @@ export default function BusMap() {
                                             duration: 700
                                           });
                                           setLinesOpen(false);
+                                          setActiveMobilePanel(null);
                                         }}
                                       >
                                         {stop.stop_name}
