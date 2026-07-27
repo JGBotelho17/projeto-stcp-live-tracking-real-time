@@ -268,8 +268,48 @@ function TrashIcon() {
   return <span className="icon-trash" aria-hidden="true" />;
 }
 
+function NavRouteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 18c3 0 3-12 6-12s3 12 6 12 3-12 4-12" />
+      <circle cx="4" cy="18" r="2" />
+      <circle cx="10" cy="6" r="2" />
+      <circle cx="16" cy="18" r="2" />
+      <circle cx="20" cy="6" r="2" />
+    </svg>
+  );
+}
+
+function NavJourneyIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20 20 4" />
+      <path d="m20 4-4 15-4-7-7-4 15-4Z" />
+    </svg>
+  );
+}
+
+function NavSearchIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="11" cy="11" r="6" />
+      <path d="m16 16 4 4" />
+    </svg>
+  );
+}
+
+function NavSettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5l-.3 3a8 8 0 0 0-1.7 1L5.1 6l-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1l.3 3h5l.3-3a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" />
+    </svg>
+  );
+}
+
 export default function BusMap() {
   const mapContainerRef = useRef<HTMLDivElement | null>(null);
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
   const vehiclesRef = useRef<globalThis.Map<string, AnimatedVehicle>>(new globalThis.Map());
   const routeShapesRef = useRef<globalThis.Map<string, RouteShape>>(new globalThis.Map());
@@ -291,6 +331,7 @@ export default function BusMap() {
   const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
@@ -3865,6 +3906,7 @@ export default function BusMap() {
           <label className="search search-with-icon">
             <span className="search-inline-icon" aria-hidden="true" />
             <input
+              ref={searchInputRef}
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
               onFocus={() => setIsSearchFocused(true)}
@@ -4081,6 +4123,95 @@ export default function BusMap() {
           <button onClick={() => setInfoDialog("donate")}>Donativos</button>
         </div>
       </section>
+
+      {settingsOpen ? (
+        <section className="mobile-settings-popover" aria-label="Definições rápidas">
+          <button
+            type="button"
+            onClick={() => {
+              setInfoDialog("about");
+              setSettingsOpen(false);
+            }}
+          >
+            Sobre
+          </button>
+          <button type="button" disabled title="Disponível futuramente">
+            Modo claro
+            <span>em breve</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setInfoDialog("donate");
+              setSettingsOpen(false);
+            }}
+          >
+            Donativos
+          </button>
+          <button type="button" onClick={() => void refreshVehicleSnapshot()}>
+            Atualizar dados
+          </button>
+        </section>
+      ) : null}
+
+      <nav className="mobile-nav-pill" aria-label="Navegação principal mobile">
+        <button
+          type="button"
+          className={linesOpen ? "is-active" : ""}
+          onClick={() => {
+            setMode("bus");
+            setLinesOpen(true);
+            setSettingsOpen(false);
+          }}
+          aria-label="Navegação: linhas e paragens"
+          title="Linhas e paragens"
+        >
+          <NavRouteIcon />
+          <span>Navegação</span>
+        </button>
+        <button
+          type="button"
+          className={journeyOpen && isJourneyExpanded ? "is-active" : ""}
+          onClick={() => {
+            setMode("bus");
+            setJourneyOpen(true);
+            setIsJourneyExpanded(true);
+            setSettingsOpen(false);
+          }}
+          aria-label="Percurso"
+          title="Percurso"
+        >
+          <NavJourneyIcon />
+          <span>Percurso</span>
+        </button>
+        <button
+          type="button"
+          className={isSearchFocused ? "is-active" : ""}
+          onClick={() => {
+            setMode("bus");
+            setSettingsOpen(false);
+            window.setTimeout(() => {
+              searchInputRef.current?.focus();
+              setIsSearchFocused(true);
+            }, 0);
+          }}
+          aria-label="Pesquisar"
+          title="Pesquisar"
+        >
+          <NavSearchIcon />
+          <span>Pesquisar</span>
+        </button>
+        <button
+          type="button"
+          className={settingsOpen ? "is-active" : ""}
+          onClick={() => setSettingsOpen((open) => !open)}
+          aria-label="Definições"
+          title="Definições"
+        >
+          <NavSettingsIcon />
+          <span>Definições</span>
+        </button>
+      </nav>
 
       {infoDialog ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setInfoDialog(null)}>
