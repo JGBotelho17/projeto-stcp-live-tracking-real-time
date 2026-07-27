@@ -1914,3 +1914,295 @@ h2 {
 .mobile-device-preview .line-card-title strong {
   white-space: normal;
 }
+
+.mobile-device-preview .shell {
+  isolation: isolate;
+}
+
+.mobile-device-preview .map::after {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(180deg, rgb(5 7 10 / 58%), transparent 30%),
+    linear-gradient(0deg, rgb(5 7 10 / 72%), transparent 38%);
+  content: "";
+  pointer-events: none;
+}
+
+.mobile-device-preview .top-stack {
+  position: static;
+  width: auto;
+  pointer-events: none;
+}
+
+.mobile-device-preview .topbar {
+  position: absolute;
+  top: 16px;
+  left: 16px;
+  right: 16px;
+  z-index: 5;
+  display: block;
+  min-height: 72px;
+  padding: 12px;
+  border-radius: 20px;
+  background: rgb(8 12 17 / 86%);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 30%);
+  pointer-events: auto;
+}
+
+.mobile-device-preview .topbar > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.mobile-device-preview .topbar .eyebrow {
+  margin-bottom: 2px;
+  color: #9ee8df;
+  font-size: 0.58rem;
+}
+
+.mobile-device-preview .topbar h1 {
+  max-width: 150px;
+  font-size: 0.98rem;
+  line-height: 1.08;
+}
+
+.mobile-device-preview .mode-tabs {
+  flex: 0 0 auto;
+  gap: 5px;
+  margin: 0;
+  padding: 3px;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 999px;
+  background: rgb(255 255 255 / 5%);
+}
+
+.mobile-device-preview .mode-tabs button {
+  width: 58px;
+  min-height: 34px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: transparent;
+}
+
+.mobile-device-preview .mode-tabs button.is-active {
+  background: rgb(125 224 212 / 18%);
+  box-shadow: inset 0 0 0 1px rgb(125 224 212 / 34%);
+}
+
+.mobile-device-preview .transport-logo {
+  width: 54px;
+  height: 22px;
+}
+
+.mobile-device-preview .metro-wordmark {
+  width: 28px;
+}
+
+.mobile-device-preview .floating-search {
+  top: 100px;
+  left: 16px;
+  right: 16px;
+  z-index: 6;
+  width: auto;
+  transform: none;
+}
+
+.mobile-device-preview .search input {
+  min-height: 46px;
+  border-radius: 999px;
+  padding: 12px 42px 12px 44px;
+  background: rgb(8 12 17 / 88%);
+  box-shadow:
+    0 16px 44px rgb(0 0 0 / 30%),
+    inset 0 0 0 1px rgb(255 255 255 / 5%);
+  font-size: 0.86rem;
+  text-transform: none;
+}
+
+.mobile-device-preview .search-clear {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  color: #d8e0e8;
+  background: rgb(255 255 255 / 8%);
+  transform: translateY(-50%);
+}
+
+.mobile-device-preview .search-dropdown {
+  top: calc(100% + 8px) !important;
+  max-height: 230px !important;
+  border-radius: 18px !important;
+  background: rgb(8 12 17 / 96%) !important;
+  box-shadow: 0 24px 64px rgb(0 0 0 / 40%);
+  backdrop-filter: blur(18px);
+}
+
+.mobile-device-preview .line-rail {
+  top: 154px;
+  bottom: auto;
+  left: 16px;
+  right: 16px;
+  z-index: 4;
+  width: auto;
+  min-width: 0;
+  max-height: 172px;
+  border-radius: 20px;
+  padding: 10px;
+  background: rgb(8 12 17 / 84%);
+}
+
+.mobile-device-preview .line-rail-header {
+  grid-template-columns: 1fr auto;
+  align-items: center;
+}
+
+.mobile-device-preview .line-rail-actions {
+  grid-template-columns: minmax(0, 1fr) 38px;
+}
+
+.mobile-device-preview .line-rail-toggle {
+  width: 38px;
+  min-height: 34px;
+  grid-column: 2;
+  grid-row: 1;
+  border: 1px solid rgb(255 255 255 / 10%);
+  border-radius: 12px;
+  background: rgb(255 255 255 / 7%);
+}
+
+.mobile-device-preview .line-rail-header > span,
+.mobile-device-preview .line-rail-header > button:not(.line-rail-toggle) {
+  display: none;
+}
+
+.mobile-device-preview .line-rail-list {
+  margin-top: 6px;
+}
+
+.mobile-device-preview .line-rail-list:has(> div:empty) {
+  display: none;
+}
+
+.mobile-device-preview .line-rail-list > div {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 6px !important;
+}
+
+.mobile-device-preview .line-rail button {
+  min-height: 32px;
+  border-radius: 12px;
+  font-size: 0.74rem;
+}
+
+.mobile-device-preview .lines-button {
+  min-height: 34px;
+  border-radius: 12px;
+}
+
+.mobile-device-preview .refresh-button {
+  border-radius: 12px;
+}
+
+.mobile-device-preview .journey-card {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  bottom: 76px;
+  z-index: 7;
+  width: auto;
+  max-height: 472px;
+  padding: 12px;
+  border-radius: 24px;
+  background: rgb(8 12 17 / 92%);
+  box-shadow: 0 -18px 60px rgb(0 0 0 / 42%);
+  pointer-events: auto;
+}
+
+.mobile-device-preview .journey-card::before {
+  justify-self: center;
+  width: 42px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgb(255 255 255 / 18%);
+  content: "";
+}
+
+.mobile-device-preview .journey-card header {
+  align-items: center;
+}
+
+.mobile-device-preview .journey-card h2 {
+  font-size: 1rem;
+}
+
+.mobile-device-preview .journey-card header button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-radius: 12px !important;
+  background: rgb(255 255 255 / 8%) !important;
+}
+
+.mobile-device-preview .journey-form {
+  grid-template-columns: 1fr;
+  gap: 9px;
+}
+
+.mobile-device-preview .journey-time-row {
+  grid-template-columns: 1fr 1fr;
+}
+
+.mobile-device-preview .journey-form input,
+.mobile-device-preview .journey-form select {
+  min-height: 42px;
+  border-radius: 12px;
+}
+
+.mobile-device-preview .journey-actions {
+  grid-template-columns: 1fr 1fr;
+}
+
+.mobile-device-preview .journey-actions button {
+  border-radius: 14px;
+}
+
+.mobile-device-preview .journey-location {
+  border-radius: 14px;
+  font-size: 0.76rem;
+}
+
+.mobile-device-preview .statusbar {
+  left: 16px;
+  right: 16px;
+  bottom: 18px;
+  z-index: 6;
+  justify-content: space-between;
+  min-height: 44px;
+  padding: 8px 10px;
+  border-radius: 18px;
+  background: rgb(8 12 17 / 88%);
+}
+
+.mobile-device-preview .status-actions {
+  gap: 5px;
+  margin-left: 0;
+  padding-left: 8px;
+}
+
+.mobile-device-preview .status-actions button {
+  min-height: 30px;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 0.7rem;
+}

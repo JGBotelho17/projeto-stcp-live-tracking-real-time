@@ -294,7 +294,7 @@ export default function BusMap() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
-  const [isJourneyExpanded, setIsJourneyExpanded] = useState(true);
+  const [isJourneyExpanded, setIsJourneyExpanded] = useState(false);
   const [isLinesFilterExpanded, setIsLinesFilterExpanded] = useState(false);
   const [vehicleCount, setVehicleCount] = useState(0);
   const [stopCount, setStopCount] = useState(0);
