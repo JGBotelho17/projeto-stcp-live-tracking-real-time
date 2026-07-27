@@ -29,6 +29,7 @@ const STALE_GPS_AFTER_MS = 90_000;
 const VERY_STALE_GPS_AFTER_MS = 150_000;
 const FILTERED_RENDER_INTERVAL_MS = 16;
 const ALL_VEHICLES_RENDER_INTERVAL_MS = 33;
+const METRO_ESTIMATED_REFRESH_MS = 3_000;
 const WALKING_SPEED_METERS_PER_MINUTE = 75;
 const USER_LOCATION_ORIGIN_LABEL = "A minha localização";
 const FAVORITE_LINES_STORAGE_KEY = "stcp-live:favourite-lines";
@@ -342,7 +343,9 @@ export default function BusMap() {
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const popupHtmlRef = useRef("");
   const stopPopupRef = useRef<maplibregl.Popup | null>(null);
+  const metroTrainPopupRef = useRef<maplibregl.Popup | null>(null);
   const replacingStopPopupRef = useRef(false);
+  const metroTrainHandlersReadyRef = useRef(false);
   const stopOverviewHandlersReadyRef = useRef(false);
   const selectedRouteStopHandlersReadyRef = useRef(false);
   const selectedRouteStopClickTargetsRef = useRef<SelectedRouteStopClickTarget[]>([]);
@@ -653,6 +656,8 @@ export default function BusMap() {
     updateLayerVisibility();
     setSelectedId(null);
     if (mode === "bus") {
+      metroTrainPopupRef.current?.remove();
+      metroTrainPopupRef.current = null;
       renderVehicles(selectedLineFilters);
       if (journeyPlan) {
         focusJourneyPlan(journeyPlan);
@@ -660,6 +665,8 @@ export default function BusMap() {
         mapRef.current?.easeTo({ center: PORTO_CENTER, zoom: 12.5, duration: 500 });
       }
     } else {
+      popupRef.current?.remove();
+      stopPopupRef.current?.remove();
       clearVehicleLayer();
       mapRef.current?.easeTo({ center: [-8.6059, 41.1498], zoom: 11.7, duration: 500 });
     }
@@ -680,7 +687,7 @@ export default function BusMap() {
     void loadMetroEstimatedVehicles();
     const timer = window.setInterval(() => {
       void loadMetroEstimatedVehicles();
-    }, 15_000);
+    }, METRO_ESTIMATED_REFRESH_MS);
 
     return () => window.clearInterval(timer);
   }, [mode]);
@@ -2438,6 +2445,7 @@ export default function BusMap() {
     }
 
     addMetroTrainLayers(map);
+    addMetroTrainHandlers(map);
     await loadMetroEstimatedVehicles();
   }
 
@@ -2461,6 +2469,7 @@ export default function BusMap() {
         id: METRO_TRAIN_SELECTED_LAYER_ID,
         type: "circle",
         source: METRO_TRAINS_SOURCE_ID,
+        filter: ["==", ["get", "id"], ""],
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 8, 15, 13],
           "circle-color": "#ffffff",
@@ -2509,6 +2518,70 @@ export default function BusMap() {
     source.setData(payload);
     setEstimatedTrainCount(payload.features.length);
     setMetroScheduleSource(payload.meta.schedule_source);
+  }
+  function addMetroTrainHandlers(map: MapLibreMap) {
+    if (metroTrainHandlersReadyRef.current) return;
+
+    map.on("mouseenter", METRO_TRAIN_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "pointer";
+    });
+
+    map.on("mouseleave", METRO_TRAIN_LAYER_ID, () => {
+      map.getCanvas().style.cursor = "";
+    });
+
+    map.on("click", METRO_TRAIN_LAYER_ID, (event) => {
+      event.originalEvent.stopPropagation();
+
+      const feature = event.features?.[0];
+      if (!feature || feature.geometry.type !== "Point" || !Array.isArray(feature.geometry.coordinates)) return;
+
+      const properties = feature.properties ?? {};
+      const id = String(properties.id ?? "");
+      const coordinates: [number, number] = [Number(feature.geometry.coordinates[0]), Number(feature.geometry.coordinates[1])];
+      if (!Number.isFinite(coordinates[0]) || !Number.isFinite(coordinates[1])) return;
+
+      metroTrainPopupRef.current?.remove();
+      metroTrainPopupRef.current = new maplibregl.Popup({
+        closeButton: true,
+        closeOnClick: true,
+        className: "metro-train-map-popup",
+        offset: 16
+      })
+        .setLngLat(coordinates)
+        .setHTML(createMetroTrainPopupHtml(properties))
+        .addTo(map);
+
+      if (map.getLayer(METRO_TRAIN_SELECTED_LAYER_ID)) {
+        map.setFilter(METRO_TRAIN_SELECTED_LAYER_ID, ["==", ["get", "id"], id]);
+      }
+
+      metroTrainPopupRef.current.on("close", () => {
+        if (map.getLayer(METRO_TRAIN_SELECTED_LAYER_ID)) {
+          map.setFilter(METRO_TRAIN_SELECTED_LAYER_ID, ["==", ["get", "id"], ""]);
+        }
+      });
+    });
+
+    metroTrainHandlersReadyRef.current = true;
+  }
+
+  function createMetroTrainPopupHtml(properties: Record<string, unknown>) {
+    const line = escapeHtml(String(properties.line ?? "Metro"));
+    const headsign = escapeHtml(String(properties.headsign ?? "Sentido n\u00e3o dispon\u00edvel"));
+    const nextStation = escapeHtml(String(properties.next_station ?? "Pr\u00f3xima esta\u00e7\u00e3o n\u00e3o dispon\u00edvel"));
+    const etaValue = Number(properties.eta_min);
+    const eta = Number.isFinite(etaValue) ? `${Math.max(0, Math.round(etaValue))} min` : "--";
+
+    return `
+      <article class="metro-train-popup-card">
+        <p class="eyebrow">Metro previsto</p>
+        <h3><span>${line}</span>${headsign}</h3>
+        <p>Pr\u00f3xima esta\u00e7\u00e3o: <b>${nextStation}</b></p>
+        <strong>${escapeHtml(eta)}</strong>
+        <small>Posi\u00e7\u00e3o calculada por hor\u00e1rio, n\u00e3o GPS real.</small>
+      </article>
+    `;
   }
 
   function updateLayerVisibility() {
@@ -3718,7 +3791,7 @@ export default function BusMap() {
                   className={mode === "metro" ? "is-active" : ""}
                   onClick={() => {
                     setMode("metro");
-                    setMetroMaintenanceOpen(true);
+                    setMetroMaintenanceOpen(false);
                     setActiveMobilePanel(null);
                     setLinesOpen(false);
                     setSettingsOpen(false);
@@ -3731,12 +3804,22 @@ export default function BusMap() {
                   <MetroLogo />
                 </button>
               </div>
-              <button className="topbar-refresh-button" type="button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar dados" title="Atualizar dados">
+              <button className="topbar-refresh-button" type="button" onClick={() => mode === "metro" ? void loadMetroEstimatedVehicles() : void refreshVehicleSnapshot()} aria-label="Atualizar dados" title="Atualizar dados">
                 <RefreshIcon />
               </button>
             </div>
           </div>
         </section>
+
+        {mode === "metro" ? (
+          <section className="metro-estimate-banner" aria-label={"Aviso de posi\u00e7\u00f5es previstas do Metro"}>
+            <span className="pulse is-metro" />
+            <div>
+              <strong>Carruagens previstas</strong>
+              <small>{"Atualiza\u00e7\u00e3o a cada 3 s - posi\u00e7\u00e3o calculada por hor\u00e1rio"}</small>
+            </div>
+          </section>
+        ) : null}
 
       {mode === "bus" && journeyOpen && activeMobilePanel === "journey" ? (
         <section className="journey-card" aria-label="Pesquisar caminho">

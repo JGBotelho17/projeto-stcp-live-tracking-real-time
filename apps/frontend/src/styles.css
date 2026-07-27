@@ -622,6 +622,40 @@ h2 {
   font-weight: 700;
 }
 
+.metro-estimate-banner {
+  position: absolute;
+  left: 16px;
+  right: 16px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgb(247 209 84 / 28%);
+  border-radius: 999px;
+  padding: 10px 13px;
+  color: #f6f8fb;
+  background: rgb(8 12 17 / 88%);
+  box-shadow: 0 16px 42px rgb(0 0 0 / 34%);
+  backdrop-filter: blur(16px);
+  pointer-events: auto;
+}
+
+.metro-estimate-banner strong,
+.metro-estimate-banner small {
+  display: block;
+}
+
+.metro-estimate-banner strong {
+  color: #f7d154;
+  font-size: 0.82rem;
+}
+
+.metro-estimate-banner small {
+  color: #aeb8c4;
+  font-size: 0.72rem;
+  line-height: 1.25;
+}
+
 .vehicle-map-popup {
   z-index: 4;
 }
@@ -654,6 +688,74 @@ h2 {
 
 .vehicle-map-popup .maplibregl-popup-close-button:hover {
   background: rgb(0 0 0 / 16%);
+}
+
+.metro-train-map-popup {
+  z-index: 4;
+}
+
+.metro-train-map-popup .maplibregl-popup-content {
+  width: 228px;
+  overflow: hidden;
+  border: 1px solid rgb(247 209 84 / 26%);
+  border-radius: 12px;
+  padding: 0;
+  color: #f6f8fb;
+  background: #0b1118;
+  box-shadow: 0 18px 52px rgb(0 0 0 / 42%);
+}
+
+.metro-train-map-popup .maplibregl-popup-tip {
+  border-top-color: #0b1118;
+}
+
+.metro-train-map-popup .maplibregl-popup-close-button {
+  top: 5px;
+  right: 6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  color: #ffffff;
+  font-size: 18px;
+  line-height: 18px;
+}
+
+.metro-train-popup-card {
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+}
+
+.metro-train-popup-card h3 {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  color: #f6f8fb;
+  font-size: 0.96rem;
+  line-height: 1.15;
+}
+
+.metro-train-popup-card h3 span {
+  width: fit-content;
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: #06100f;
+  background: #f7d154;
+  font-size: 0.76rem;
+  font-weight: 900;
+}
+
+.metro-train-popup-card p,
+.metro-train-popup-card small {
+  margin: 0;
+  color: #aeb8c4;
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+
+.metro-train-popup-card strong {
+  color: #f7d154;
+  font-size: 1rem;
 }
 
 .vehicle-popover header {
@@ -2238,6 +2340,11 @@ h2 {
 .mobile-device-preview .topbar-refresh-button svg {
   width: 21px;
   height: 21px;
+}
+
+.mobile-device-preview .metro-estimate-banner {
+  top: 144px;
+  border-radius: 18px;
 }
 
 .mobile-device-preview .floating-search {
