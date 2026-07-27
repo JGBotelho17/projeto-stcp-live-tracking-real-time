@@ -288,7 +288,7 @@ export default function BusMap() {
   const frameRef = useRef<number | null>(null);
   const lastRenderRef = useRef(0);
 
-  const [filter, setFilter] = useState("");
+  const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -385,6 +385,18 @@ export default function BusMap() {
     ];
   }, [availableLines, favoriteLineNumbers]);
 
+  const visibleRailLines = isLinesFilterExpanded || favoriteLineNumbers.length === 0 ? railLines : favoriteLineNumbers;
+
+  function toggleSelectedLineFilter(lineNumber: string) {
+    setSelectedLineFilters((current) =>
+      current.includes(lineNumber) ? current.filter((entry) => entry !== lineNumber) : [...current, lineNumber]
+    );
+  }
+
+  function selectSingleLineFilter(lineNumber: string) {
+    setSelectedLineFilters([lineNumber]);
+  }
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
@@ -460,11 +472,10 @@ export default function BusMap() {
     const tick = () => {
       if (mode === "bus") {
         const now = performance.now();
-        const lineFilter = filter.trim();
-        const renderInterval = lineFilter ? FILTERED_RENDER_INTERVAL_MS : ALL_VEHICLES_RENDER_INTERVAL_MS;
+        const renderInterval = selectedLineFilters.length > 0 ? FILTERED_RENDER_INTERVAL_MS : ALL_VEHICLES_RENDER_INTERVAL_MS;
 
         if (now - lastRenderRef.current >= renderInterval) {
-          renderVehicles(lineFilter, now);
+          renderVehicles(selectedLineFilters, now);
           lastRenderRef.current = now;
         }
       }
@@ -475,13 +486,13 @@ export default function BusMap() {
     return () => {
       if (frameRef.current) cancelAnimationFrame(frameRef.current);
     };
-  }, [filter, mode, linesPayload]);
+  }, [mode, linesPayload, selectedLineFilters]);
 
   useEffect(() => {
     updateLayerVisibility();
     setSelectedId(null);
     if (mode === "bus") {
-      renderVehicles(filter.trim());
+      renderVehicles(selectedLineFilters);
       if (journeyPlan) {
         focusJourneyPlan(journeyPlan);
       } else {
@@ -491,7 +502,7 @@ export default function BusMap() {
       clearVehicleLayer();
       mapRef.current?.easeTo({ center: [-8.6059, 41.1498], zoom: 11.7, duration: 500 });
     }
-  }, [mode]);
+  }, [mode, selectedLineFilters]);
 
   async function refreshVehicleSnapshot() {
     const response = await fetch(`${apiBaseUrl}/vehicles`);
@@ -532,9 +543,9 @@ export default function BusMap() {
   }, [linesPayload]);
 
   useEffect(() => {
-    if (filter.trim().length < 2 || linesPayload || linesLoading) return;
+    if (searchQuery.trim().length < 2 || linesPayload || linesLoading) return;
     void loadLines();
-  }, [filter, linesPayload, linesLoading]);
+  }, [searchQuery, linesPayload, linesLoading]);
 
   useEffect(() => {
     window.localStorage.setItem(FAVORITE_LINES_STORAGE_KEY, JSON.stringify(favoriteLineNumbers));
@@ -548,8 +559,8 @@ export default function BusMap() {
 
   useEffect(() => {
     if (!selectedId) return;
-    renderVehicles(filter.trim());
-  }, [linesPayload, selectedId, filter]);
+    renderVehicles(selectedLineFilters);
+  }, [linesPayload, selectedId, selectedLineFilters]);
 
   useEffect(() => {
     const query = originQuery.trim();
@@ -689,14 +700,14 @@ export default function BusMap() {
     setFavoriteResult(result);
     setFavoritesOpen(false);
     setMode("bus");
-    setFilter(line.number);
+    selectSingleLineFilter(line.number);
 
     const focusVehicle = () => {
       const now = performance.now();
       const vehicle = getInterpolatedVehicle(bestArrival.vehicleId, now) ?? bestArrival.vehicle;
       selectedIdRef.current = bestArrival.vehicleId;
       setSelectedId(bestArrival.vehicleId);
-      renderVehicles(line.number, now);
+      renderVehicles([line.number], now);
       mapRef.current?.easeTo({
         center: [vehicle.longitude, vehicle.latitude],
         zoom: 15.6,
@@ -1840,11 +1851,13 @@ export default function BusMap() {
     setDataVersion((version) => version + 1);
   }
 
-  function renderVehicles(lineFilter: string, now = performance.now()) {
+  function renderVehicles(lineFilters: string[], now = performance.now()) {
     const source = mapRef.current?.getSource(BUS_SOURCE_ID) as GeoJSONSource | undefined;
     if (!source) return;
 
-    const normalizedLineFilter = lineFilter.toLowerCase();
+    const normalizedLineFilters = lineFilters
+      .map((lineFilter) => lineFilter.toLowerCase().trim())
+      .filter((lineFilter) => lineFilter.length > 0);
     const features: Array<{
       type: "Feature";
       geometry: {
@@ -1865,7 +1878,9 @@ export default function BusMap() {
 
     for (const [vehicleId, animated] of vehiclesRef.current) {
       const vehicle = getInterpolatedVehicle(vehicleId, now) ?? animated.current;
-      const visible = !normalizedLineFilter || lineMatchesSearch(animated.current.line_number, normalizedLineFilter);
+      const visible =
+        normalizedLineFilters.length === 0 ||
+        normalizedLineFilters.some((lineFilter) => lineMatchesSearch(animated.current.line_number, lineFilter));
       if (!visible) continue;
       if (vehicleId === selectedIdRef.current) {
         selectedVehicleForPopup = vehicle;
@@ -1914,7 +1929,7 @@ export default function BusMap() {
     updateLayerVisibility();
     renderUserLocation();
     renderJourneyPlan(journeyPlan);
-    renderVehicles(filter.trim());
+    renderVehicles(selectedLineFilters);
     void loadLines();
   }
 
@@ -2386,7 +2401,7 @@ export default function BusMap() {
         createAnimatedVehicle(animated.previous, animated.current, animated.animationStartedAt, animated.animationDurationMs)
       );
     }
-    renderVehicles(filter.trim());
+    renderVehicles(selectedLineFilters);
   }
 
   function addBusLayers(map: MapLibreMap) {
@@ -2746,8 +2761,8 @@ export default function BusMap() {
       }
     }
 
-    renderVehicles(filter.trim());
-  }, [selectedId, filter]);
+    renderVehicles(selectedLineFilters);
+  }, [selectedId, selectedLineFilters]);
 
   function getInterpolatedVehicle(vehicleId: string, now: number): VehiclePosition | null {
     const animated = vehiclesRef.current.get(vehicleId);
@@ -3386,7 +3401,10 @@ export default function BusMap() {
     const vehicleNumber = vehicle.vehicle_id.replace(/^stcp-/, "");
     const lineData = linesPayload?.lines.find(l => l.number === vehicle.line_number || l.id === vehicle.line_number);
     const resolvedLineNumber = lineData ? lineData.number : vehicle.line_number;
+    const directionData = lineData?.directions.find((direction) => direction.direction_id === vehicle.direction_id) ?? null;
+    const directionTerminalStop = directionData?.stops.at(-1)?.stop_name ?? directionData?.headsign ?? "Direção não disponível";
     const nextStop = escapeHtml(vehicle.next_stop_name ?? vehicle.next_stop_id ?? "Não disponível");
+    const directionLabel = escapeHtml(directionTerminalStop);
     const eta = vehicle.next_stop_eta_min === null ? "ETA não disponível" : `${vehicle.next_stop_eta_min} min até à próxima`;
     const gpsTime = new Date(vehicle.updated_at).toLocaleTimeString("pt-PT");
     const speed = vehicle.speed === null ? "" : `${Math.round(vehicle.speed * 3.6)} km/h`;
@@ -3395,7 +3413,7 @@ export default function BusMap() {
       <article class="vehicle-popover" style="--line-color: ${lineColor}">
         <header>
           <strong>${escapeHtml(resolvedLineNumber)}</strong>
-          <span>${nextStop}</span>
+          <span>${directionLabel}</span>
         </header>
         <div class="vehicle-popover-body">
           <p><span class="popup-dot">P</span><b>Próxima:</b> ${nextStop}</p>
@@ -3759,7 +3777,6 @@ export default function BusMap() {
                 className="search-clear" 
                 onClick={() => {
                   setSearchQuery("");
-                  setFilter("");
                 }}
                 aria-label="Limpar pesquisa"
               >
@@ -3810,7 +3827,7 @@ export default function BusMap() {
                             onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                             onClick={() => {
-                              setFilter(line.id);
+                              selectSingleLineFilter(line.id);
                               setSearchQuery(line.id);
                             }}
                           >
@@ -3879,45 +3896,49 @@ export default function BusMap() {
 
       {mode === "bus" ? (
         <section className="line-rail" aria-label="Filtro rápido por linha">
-          <div style={{ display: "flex", gap: "6px", justifyContent: "flex-end", marginBottom: "6px" }}>
-            <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "auto", padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", gap: "6px" }}>
-              <span aria-hidden="true">≡</span>
-              <span>Paragens</span>
+          <div className="line-rail-header">
+            <div className="line-rail-actions">
+              <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}>
+                <span aria-hidden="true">≡</span>
+                <span>Paragens</span>
+              </button>
+              <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar" style={{ width: "auto", flex: "0 0 32px", height: "32px", borderLeftWidth: "1px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
+                <RefreshIcon />
+              </button>
+            </div>
+            <button className="line-rail-toggle" onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} aria-label={isLinesFilterExpanded ? "Fechar lista de linhas" : "Abrir lista de linhas"}>
+              <ChevronIcon expanded={!isLinesFilterExpanded} />
             </button>
-            <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar" style={{ width: "auto", flex: "0 0 32px", height: "32px", borderLeftWidth: "1px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
-              <RefreshIcon />
+            <span>Filtrar por</span>
+            <button className={selectedLineFilters.length === 0 ? "is-active" : ""} onClick={() => setSelectedLineFilters([])}>
+              Todas
             </button>
           </div>
-          <button onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} style={{ width: "100%", padding: "4px", background: "rgba(255,255,255,0.1)", borderRadius: "4px", color: "#fff", cursor: "pointer", border: "none", marginBottom: "8px", display: "flex", justifyContent: "center" }}>
-            <ChevronIcon expanded={!isLinesFilterExpanded} />
-          </button>
-          <span>Filtrar por</span>
-          <button className={!filter ? "is-active" : ""} onClick={() => setFilter("")}>
-            Todas
-          </button>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-            {(isLinesFilterExpanded ? railLines : favoriteLineNumbers.filter(l => railLines.includes(l))).map((line) => {
-              const lineTheme = getLineTheme(line);
-              const isActive = filter === line;
-              const isFavorite = favoriteLineNumbers.includes(line);
+          <div className="line-rail-list">
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+              {visibleRailLines.map((line) => {
+                const lineTheme = getLineTheme(line);
+                const isActive = selectedLineFilters.includes(line);
+                const isFavorite = favoriteLineNumbers.includes(line);
 
-              return (
-                <button
-                  key={line}
-                  className={isActive ? "is-active" : ""}
-                  onClick={() => setFilter(isActive ? "" : line)}
-                  style={{
-                    borderColor: isActive ? lineTheme.color : undefined,
-                    borderLeftColor: lineTheme.color,
-                    background: isActive ? lineTheme.color : undefined,
-                    color: isActive ? lineTheme.text : undefined
-                  }}
-                  title={`Mostrar linha ${line}`}
-                >
-                  {isFavorite ? `★ ${line}` : line}
-                </button>
-              );
-            })}
+                return (
+                  <button
+                    key={line}
+                    className={isActive ? "is-active" : ""}
+                    onClick={() => toggleSelectedLineFilter(line)}
+                    style={{
+                      borderColor: lineTheme.color,
+                      borderLeftColor: lineTheme.color,
+                      background: isActive ? lineTheme.color : undefined,
+                      color: isActive ? lineTheme.text : "#ffffff"
+                    }}
+                    title={`Mostrar linha ${line}`}
+                  >
+                    {isFavorite ? `★ ${line}` : line}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </section>
       ) : null}
@@ -4004,10 +4025,10 @@ export default function BusMap() {
                 </p>
                 <div className="donate-options" aria-label="Opções de donativo">
                   <button type="button" className="donate-option paypal-option">
-                    <img src="/brand-logos/paypal-logo.png" alt="" aria-hidden="true" />
+                    <span>PayPal</span>
                   </button>
                   <button type="button" className="donate-option revolut-option">
-                    <img src="/brand-logos/revolut-logo.svg" alt="" aria-hidden="true" />
+                    <span>Revolut</span>
                   </button>
                 </div>
               </div>

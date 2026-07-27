@@ -89,11 +89,11 @@ export class GtfsNextStopsService {
     const projection = projectPointToShape([vehicle.longitude, vehicle.latitude], shape);
     if (projection.distanceFromShapeMeters > 140) return null;
 
-    const lookAheadMeters = Math.max(20, (vehicle.speed ?? 0) * 4);
+    const stopAheadEpsilonMeters = Math.max(2, Math.min(12, (vehicle.speed ?? 0) * 1.5));
     const nextStop = stops.find(
       (stop) =>
         stop.distanceAlongShapeMeters >
-        projection.distanceAlongShapeMeters + lookAheadMeters
+        projection.distanceAlongShapeMeters + stopAheadEpsilonMeters
     );
 
     const stop = nextStop ?? stops[0] ?? null;
