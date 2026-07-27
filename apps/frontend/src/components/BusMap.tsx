@@ -250,10 +250,10 @@ function RefreshIcon() {
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
   return (
-    <svg 
-      xmlns="http://www.w3.org/2000/svg" 
-      width="16" height="16" 
-      viewBox="0 0 24 24" fill="none" 
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="16" height="16"
+      viewBox="0 0 24 24" fill="none"
       stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
       style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
     >
@@ -344,6 +344,7 @@ export default function BusMap() {
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [metroMaintenanceOpen, setMetroMaintenanceOpen] = useState(false);
   const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
@@ -683,7 +684,7 @@ export default function BusMap() {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !linesPayload) return;
-    
+
     for (const line of linesPayload.lines) {
       if (!line.color) continue;
       const iconId = `${BUS_ICON_PREFIX}-${line.number}`;
@@ -3190,11 +3191,11 @@ export default function BusMap() {
   function getLineTheme(lineNumber: string) {
     const lineData = linesPayload?.lines.find((entry) => entry.number === lineNumber || entry.id === lineNumber);
     if (lineData?.color) {
-      return { 
-        key: lineData.number, 
-        label: lineData.name, 
-        color: lineData.color, 
-        text: lineData.text_color ?? "#FFFFFF" 
+      return {
+        key: lineData.number,
+        label: lineData.name,
+        color: lineData.color,
+        text: lineData.text_color ?? "#FFFFFF"
       };
     }
     const familyKey = getLineFamilyKey(lineNumber);
@@ -3662,9 +3663,9 @@ export default function BusMap() {
     const query = searchQuery.trim().toLowerCase();
     if (!query || query.length < 3) return [];
     const lines = linesPayload?.lines ?? [];
-    
+
     const uniqueStops = new Map<string, { id: string; name: string; lat: number; lon: number }>();
-    
+
     for (const line of lines) {
       for (const direction of line.directions) {
         for (const stop of direction.stops) {
@@ -3698,7 +3699,7 @@ export default function BusMap() {
               <div className="mode-tabs" aria-label="Modo de transporte">
                 <button
                   className={mode === "bus" ? "is-active" : ""}
-                  onClick={() => setMode("bus")}
+                  onClick={() => { setMode("bus"); setMetroMaintenanceOpen(false); }}
                   aria-label="Autocarros STCP"
                   title="Autocarros STCP"
                 >
@@ -3706,7 +3707,15 @@ export default function BusMap() {
                 </button>
                 <button
                   className={mode === "metro" ? "is-active" : ""}
-                  onClick={() => setMode("metro")}
+                  onClick={() => {
+                    setMode("metro");
+                    setMetroMaintenanceOpen(true);
+                    setActiveMobilePanel(null);
+                    setLinesOpen(false);
+                    setSettingsOpen(false);
+                    setIsJourneyExpanded(false);
+                    searchInputRef.current?.blur();
+                  }}
                   aria-label="Metro do Porto"
                   title="Metro do Porto"
                 >
@@ -3910,14 +3919,35 @@ export default function BusMap() {
           ) : null}
         </section>
       ) : null}
-
-        {mode === "metro" ? (
-          <section className="notice-bar">
-            Carruagens estimadas por horário GTFS. A camada fica pronta para trocar por tempo real quando existir feed público.
-          </section>
-        ) : null}
       </div>
 
+
+      {metroMaintenanceOpen ? (
+        <div className="modal-backdrop maintenance-backdrop" role="presentation" onClick={() => { setMetroMaintenanceOpen(false); setMode("bus"); }}>
+          <section className="maintenance-modal" role="dialog" aria-modal="true" aria-label={"Metro do Porto em manuten\u00e7\u00e3o"} onClick={(event) => event.stopPropagation()}>
+            <header>
+              <div>
+                <p className="eyebrow">Metro do Porto</p>
+                <h2>{"Em manuten\u00e7\u00e3o"}</h2>
+              </div>
+              <button className="modal-close" onClick={() => { setMetroMaintenanceOpen(false); setMode("bus"); }} aria-label="Fechar aviso do Metro">
+                x
+              </button>
+            </header>
+            <div className="maintenance-modal-body">
+              <p>
+                {"A vista do Metro est\u00e1 temporariamente em manuten\u00e7\u00e3o para melhorar a leitura das esta\u00e7\u00f5es, linhas e sentidos."}
+              </p>
+              <p>
+                {"Estamos a preparar uma camada mais est\u00e1vel com esta\u00e7\u00f5es bem agrupadas, cores oficiais por linha e uma integra\u00e7\u00e3o mais clara com percursos que combinem Metro e autocarro."}
+              </p>
+              <p>
+                {"Quando existir uma fonte p\u00fablica fi\u00e1vel para carruagens em tempo real, esta janela ser\u00e1 substitu\u00edda pela vista live."}
+              </p>
+            </div>
+          </section>
+        </div>
+      ) : null}
       {mode === "bus" ? (
         <section className={linesOpen || activeMobilePanel === "journey" || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
@@ -3937,8 +3967,8 @@ export default function BusMap() {
               placeholder="Pesquisar Linha ou Paragem..."
             />
             {searchQuery && (
-              <button 
-                className="search-clear" 
+              <button
+                className="search-clear"
                 onClick={() => {
                   setSearchQuery("");
                 }}
@@ -3948,7 +3978,7 @@ export default function BusMap() {
               </button>
             )}
           </label>
-          
+
           {isSearchFocused && searchQuery.trim().length > 0 && (
             <div className="search-dropdown" style={{
               position: "absolute",
@@ -3999,8 +4029,8 @@ export default function BusMap() {
                               setActiveMobilePanel(null);
                             }}
                           >
-                            <span style={{ 
-                              background: theme.color, 
+                            <span style={{
+                              background: theme.color,
                               color: theme.text,
                               padding: "2px 6px",
                               borderRadius: "4px",
@@ -4134,7 +4164,8 @@ export default function BusMap() {
       ) : null}
 
       <section className="statusbar" aria-label="Estado da ligação">
-        {mode === "bus" ? (
+
+      {mode === "bus" ? (
           <>
             <span className={connected ? "pulse is-online" : "pulse"} />
             {connected ? "Tempo real ligado" : "A reconectar"}
