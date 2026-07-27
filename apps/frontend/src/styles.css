@@ -1291,6 +1291,33 @@ h2 {
   line-height: 1.45;
 }
 
+.github-project-link {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 999px;
+  padding: 9px 12px;
+  color: #f6f8fb;
+  background: #111820;
+  font-size: 0.88rem;
+  font-weight: 900;
+  text-decoration: none;
+}
+
+.github-project-link:hover {
+  border-color: rgb(125 224 212 / 42%);
+  background: #162231;
+}
+
+.github-project-link svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+}
+
 .donate-options {
   display: flex;
   flex-wrap: wrap;
