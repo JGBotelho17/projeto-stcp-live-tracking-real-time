@@ -1260,6 +1260,11 @@ h2 {
   box-shadow: 0 26px 80px rgb(0 0 0 / 48%);
 }
 
+.maintenance-modal .eyebrow,
+.maintenance-modal h2 {
+  color: #ff9f3f;
+}
+
 .info-modal header,
 .maintenance-modal header {
   display: flex;
