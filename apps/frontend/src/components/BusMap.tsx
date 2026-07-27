@@ -4062,6 +4062,11 @@ export default function BusMap() {
             <div className="line-rail-actions">
               <div className="line-rail-title">
                 <span>Paragens</span>
+                {!isLinesFilterExpanded && selectedLineFilters.length > 0 ? (
+                  <small>
+                    ({selectedLineFilters.length} selecionada{selectedLineFilters.length === 1 ? "" : "s"})
+                  </small>
+                ) : null}
               </div>
             </div>
             <button className="line-rail-toggle" onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} aria-label={isLinesFilterExpanded ? "Fechar lista de linhas" : "Abrir lista de linhas"}>

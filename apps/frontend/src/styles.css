@@ -2269,6 +2269,13 @@ h2 {
   font-weight: 900;
 }
 
+.mobile-device-preview .line-rail-title small {
+  color: #9ee8df;
+  font-size: 0.68rem;
+  font-weight: 850;
+  white-space: nowrap;
+}
+
 .mobile-device-preview .line-rail-toggle {
   width: 38px;
   min-height: 34px;
