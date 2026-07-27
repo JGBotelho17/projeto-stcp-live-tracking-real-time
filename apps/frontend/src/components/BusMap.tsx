@@ -3970,6 +3970,9 @@ export default function BusMap() {
                             onClick={() => {
                               selectSingleLineFilter(line.id);
                               setSearchQuery(line.id);
+                              setIsSearchFocused(false);
+                              setIsJourneyExpanded(false);
+                              setSettingsOpen(false);
                             }}
                           >
                             <span style={{ 
@@ -4015,6 +4018,9 @@ export default function BusMap() {
                           onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
                           onClick={() => {
                             setSearchQuery("");
+                            setIsSearchFocused(false);
+                            setIsJourneyExpanded(false);
+                            setSettingsOpen(false);
                             mapRef.current?.easeTo({
                               center: [stop.lon, stop.lat],
                               zoom: 15.5,
@@ -4039,7 +4045,17 @@ export default function BusMap() {
         <section className="line-rail" aria-label="Filtro rápido por linha">
           <div className="line-rail-header">
             <div className="line-rail-actions">
-              <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}>
+              <button
+                className="lines-button is-active"
+                onClick={() => {
+                  setLinesOpen(true);
+                  setIsJourneyExpanded(false);
+                  setIsSearchFocused(false);
+                  setSettingsOpen(false);
+                  searchInputRef.current?.blur();
+                }}
+                style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}
+              >
                 <span aria-hidden="true">≡</span>
                 <span>Paragens</span>
               </button>
@@ -4161,7 +4177,10 @@ export default function BusMap() {
           onClick={() => {
             setMode("bus");
             setLinesOpen(true);
+            setIsJourneyExpanded(false);
+            setIsSearchFocused(false);
             setSettingsOpen(false);
+            searchInputRef.current?.blur();
           }}
           aria-label="Navegação: linhas e paragens"
           title="Linhas e paragens"
@@ -4171,12 +4190,15 @@ export default function BusMap() {
         </button>
         <button
           type="button"
-          className={journeyOpen && isJourneyExpanded ? "is-active" : ""}
+          className={journeyOpen && isJourneyExpanded && !linesOpen && !settingsOpen ? "is-active" : ""}
           onClick={() => {
             setMode("bus");
+            setLinesOpen(false);
             setJourneyOpen(true);
             setIsJourneyExpanded(true);
+            setIsSearchFocused(false);
             setSettingsOpen(false);
+            searchInputRef.current?.blur();
           }}
           aria-label="Percurso"
           title="Percurso"
@@ -4189,6 +4211,8 @@ export default function BusMap() {
           className={isSearchFocused ? "is-active" : ""}
           onClick={() => {
             setMode("bus");
+            setLinesOpen(false);
+            setIsJourneyExpanded(false);
             setSettingsOpen(false);
             window.setTimeout(() => {
               searchInputRef.current?.focus();
@@ -4204,7 +4228,13 @@ export default function BusMap() {
         <button
           type="button"
           className={settingsOpen ? "is-active" : ""}
-          onClick={() => setSettingsOpen((open) => !open)}
+          onClick={() => {
+            setLinesOpen(false);
+            setIsJourneyExpanded(false);
+            setIsSearchFocused(false);
+            searchInputRef.current?.blur();
+            setSettingsOpen((open) => !open);
+          }}
           aria-label="Definições"
           title="Definições"
         >
