@@ -227,6 +227,8 @@ type StopArrival = {
   textColor: string;
 };
 
+type MobilePanel = "navigation" | "journey" | "stops" | "settings" | null;
+
 type FavoriteResult = {
   lineNumber: string;
   headsign: string;
@@ -298,6 +300,46 @@ function SendIcon() {
   return <span className="icon-send" aria-hidden="true" />;
 }
 
+
+function NavInfoIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M12 11v6" />
+      <path d="M12 7h.01" />
+    </svg>
+  );
+}
+
+function NavRouteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 18c3 0 3-12 6-12s3 12 6 12 3-12 4-12" />
+      <circle cx="4" cy="18" r="2" />
+      <circle cx="10" cy="6" r="2" />
+      <circle cx="16" cy="18" r="2" />
+      <circle cx="20" cy="6" r="2" />
+    </svg>
+  );
+}
+
+function NavStopsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 21s6-5.1 6-11a6 6 0 1 0-12 0c0 5.9 6 11 6 11Z" />
+      <circle cx="12" cy="10" r="2.5" />
+    </svg>
+  );
+}
+
+function NavSettingsIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.5-2.4 1a8 8 0 0 0-1.7-1L14.5 3h-5l-.3 3a8 8 0 0 0-1.7 1L5.1 6l-2 3.5 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.5 2.4-1a8 8 0 0 0 1.7 1l.3 3h5l.3-3a8 8 0 0 0 1.7-1l2.4 1 2-3.5-2-1.5c.1-.3.1-.7.1-1Z" />
+    </svg>
+  );
+}
 function TrashIcon() {
   return <span className="icon-trash" aria-hidden="true" />;
 }
@@ -325,6 +367,8 @@ export default function BusMap() {
   const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
@@ -3883,6 +3927,7 @@ export default function BusMap() {
   }, [searchQuery, allUniqueStops]);
 
   return (
+    <div className="responsive-app-frame" aria-label="STCP Live Tracking">
     <main className="shell">
       <div ref={mapContainerRef} className="map" />
 
@@ -3891,22 +3936,35 @@ export default function BusMap() {
           <div>
             <p className="eyebrow">STCP Live</p>
             <h1>{mode === "bus" ? "Radar de autocarros" : "Metro do Porto"}</h1>
-            <div className="mode-tabs" aria-label="Modo de transporte">
-              <button
-                className={mode === "bus" ? "is-active" : ""}
-                onClick={() => setMode("bus")}
-                aria-label="Autocarros STCP"
-                title="Autocarros STCP"
-              >
-                <StcpLogo />
-              </button>
-              <button
-                className={mode === "metro" ? "is-active" : ""}
-                onClick={() => setMode("metro")}
-                aria-label="Metro do Porto"
-                title="Metro do Porto"
-              >
-                <MetroLogo />
+            <div className="topbar-actions">
+              <div className="mode-tabs" aria-label="Modo de transporte">
+                <button
+                  className={mode === "bus" ? "is-active" : ""}
+                  onClick={() => {
+                    setMode("bus");
+                    setActiveMobilePanel(null);
+                    setSettingsOpen(false);
+                  }}
+                  aria-label="Autocarros STCP"
+                  title="Autocarros STCP"
+                >
+                  <StcpLogo />
+                </button>
+                <button
+                  className={mode === "metro" ? "is-active" : ""}
+                  onClick={() => {
+                    setMode("metro");
+                    setActiveMobilePanel(null);
+                    setSettingsOpen(false);
+                  }}
+                  aria-label="Metro do Porto"
+                  title="Metro do Porto"
+                >
+                  <MetroLogo />
+                </button>
+              </div>
+              <button className="topbar-refresh-button" type="button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar dados" title="Atualizar dados">
+                <RefreshIcon />
               </button>
             </div>
           </div>
@@ -3914,7 +3972,7 @@ export default function BusMap() {
         </section>
 
       {mode === "bus" && journeyOpen ? (
-        <section className="journey-card" aria-label="Pesquisar caminho">
+        <section className={activeMobilePanel === "journey" ? "journey-card is-mobile-panel-open" : "journey-card"} aria-label="Pesquisar caminho">
           <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
               <p className="eyebrow">Percurso rápido</p>
@@ -4112,7 +4170,7 @@ export default function BusMap() {
       </div>
 
       {mode === "bus" ? (
-        <section className="floating-search" aria-label="Pesquisar linha ou paragem">
+        <section className={activeMobilePanel === "journey" || activeMobilePanel === "stops" || settingsOpen || linesOpen || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
             <span className="search-inline-icon" aria-hidden="true">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7de0d4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -4253,7 +4311,7 @@ export default function BusMap() {
       ) : null}
 
       {mode === "bus" ? (
-        <section className={`line-rail ${isLinesFilterExpanded ? "is-expanded" : "is-collapsed"}`} aria-label="Filtro rápido por linha">
+        <section className={`line-rail ${isLinesFilterExpanded ? "is-expanded" : "is-collapsed"} ${activeMobilePanel === "stops" ? "is-mobile-panel-open" : ""}`} aria-label="Filtro rápido por linha">
           <div className="line-rail-header">
             <div className="line-rail-actions">
               <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}>
@@ -4382,6 +4440,120 @@ export default function BusMap() {
         </div>
       </section>
 
+
+      <nav className="mobile-nav-pill" aria-label={"Navega\u00e7\u00e3o principal mobile"}>
+        <button
+          type="button"
+          className={activeMobilePanel === "navigation" && linesOpen ? "is-active" : ""}
+          onClick={() => {
+            const shouldOpen = activeMobilePanel !== "navigation" || !linesOpen;
+            setMode("bus");
+            setLinesOpen(shouldOpen);
+            setJourneyOpen(false);
+            setIsSearchFocused(false);
+            setSettingsOpen(false);
+            setActiveMobilePanel(shouldOpen ? "navigation" : null);
+          }}
+          aria-label={"Navega\u00e7\u00e3o"}
+          title={"Navega\u00e7\u00e3o"}
+        >
+          <NavInfoIcon />
+          <span>{"Navega\u00e7\u00e3o"}</span>
+        </button>
+        <button
+          type="button"
+          className={activeMobilePanel === "journey" ? "is-active" : ""}
+          onClick={() => {
+            const shouldOpen = activeMobilePanel !== "journey";
+            setMode("bus");
+            setLinesOpen(false);
+            setJourneyOpen(true);
+            setIsJourneyExpanded(shouldOpen);
+            setIsSearchFocused(false);
+            setSettingsOpen(false);
+            setActiveMobilePanel(shouldOpen ? "journey" : null);
+          }}
+          aria-label="Percurso"
+          title="Percurso"
+        >
+          <NavRouteIcon />
+          <span>Percurso</span>
+        </button>
+        <button
+          type="button"
+          className={activeMobilePanel === "stops" ? "is-active" : ""}
+          onClick={() => {
+            const shouldOpen = activeMobilePanel !== "stops";
+            setMode("bus");
+            setLinesOpen(false);
+            setJourneyOpen(false);
+            setIsSearchFocused(false);
+            setSettingsOpen(false);
+            setIsLinesFilterExpanded(shouldOpen);
+            setActiveMobilePanel(shouldOpen ? "stops" : null);
+          }}
+          aria-label="Paragens"
+          title="Paragens"
+        >
+          <NavStopsIcon />
+          <span>Paragens</span>
+        </button>
+        <button
+          type="button"
+          className={activeMobilePanel === "settings" && settingsOpen ? "is-active" : ""}
+          onClick={() => {
+            const shouldOpen = activeMobilePanel !== "settings" || !settingsOpen;
+            setLinesOpen(false);
+            setJourneyOpen(false);
+            setIsSearchFocused(false);
+            setSettingsOpen(shouldOpen);
+            setActiveMobilePanel(shouldOpen ? "settings" : null);
+          }}
+          aria-label={"Defini\u00e7\u00f5es"}
+          title={"Defini\u00e7\u00f5es"}
+        >
+          <NavSettingsIcon />
+          <span>{"Defini\u00e7\u00f5es"}</span>
+        </button>
+      </nav>
+
+      {settingsOpen && activeMobilePanel === "settings" ? (
+        <section className="mobile-settings-popover" aria-label={"Defini\u00e7\u00f5es r\u00e1pidas"}>
+          <button
+            type="button"
+            onClick={() => {
+              setInfoDialog("about");
+              setSettingsOpen(false);
+              setActiveMobilePanel(null);
+            }}
+          >
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-about" aria-hidden="true" />
+              Sobre
+            </span>
+          </button>
+          <button type="button" disabled title="Dispon\u00edvel futuramente">
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-theme" aria-hidden="true" />
+              Modo claro
+            </span>
+            <small>Brevemente</small>
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setInfoDialog("donate");
+              setSettingsOpen(false);
+              setActiveMobilePanel(null);
+            }}
+          >
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-donate" aria-hidden="true" />
+              Donativos
+            </span>
+          </button>
+        </section>
+      ) : null}
       {infoDialog ? (
         <div className="modal-backdrop" role="presentation" onClick={() => setInfoDialog(null)}>
           <section className="info-modal" role="dialog" aria-modal="true" aria-label={infoDialog === "about" ? "Sobre" : "Donativos"} onClick={(event) => event.stopPropagation()}>
@@ -4437,14 +4609,14 @@ export default function BusMap() {
       ) : null}
 
       {favoritesOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setFavoritesOpen(false)}>
+        <div className="modal-backdrop" role="presentation" onClick={() => { setFavoritesOpen(false); setActiveMobilePanel(null); }}>
           <section className="favorites-modal" role="dialog" aria-modal="true" aria-label="Linhas favoritas" onClick={(event) => event.stopPropagation()}>
             <header className="lines-modal-header">
               <div>
                 <p className="eyebrow">Atalhos</p>
                 <h2>Linhas favoritas</h2>
               </div>
-              <button className="modal-close" onClick={() => setFavoritesOpen(false)} aria-label="Fechar favoritos">
+              <button className="modal-close" onClick={() => { setFavoritesOpen(false); setActiveMobilePanel(null); }} aria-label="Fechar favoritos">
                 x
               </button>
             </header>
@@ -4549,14 +4721,14 @@ export default function BusMap() {
       ) : null}
 
       {linesOpen ? (
-        <div className="modal-backdrop" role="presentation" onClick={() => setLinesOpen(false)}>
-          <section className="lines-modal" role="dialog" aria-modal="true" aria-label="Paragens e favoritos" onClick={(event) => event.stopPropagation()}>
+        <div className="modal-backdrop" role="presentation" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }}>
+          <section className={activeMobilePanel === "navigation" ? "lines-modal is-navigation-modal" : "lines-modal"} role="dialog" aria-modal="true" aria-label={activeMobilePanel === "navigation" ? "Navega\u00e7\u00e3o e favoritos" : "Paragens e favoritos"} onClick={(event) => event.stopPropagation()}>
             <header className="lines-modal-header">
               <div>
                 <p className="eyebrow">STCP</p>
-                <h2>Paragens</h2>
+                <h2>{activeMobilePanel === "navigation" ? "Navega\u00e7\u00e3o" : "Paragens"}</h2>
               </div>
-              <button className="modal-close" onClick={() => setLinesOpen(false)} aria-label="Fechar paragens">
+              <button className="modal-close" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }} aria-label="Fechar paragens">
                 x
               </button>
             </header>
@@ -4775,7 +4947,7 @@ export default function BusMap() {
           </section>
         </div>
       ) : null}
-
     </main>
+    </div>
   );
 }
