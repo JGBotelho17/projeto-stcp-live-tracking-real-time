@@ -3710,7 +3710,7 @@ export default function BusMap() {
         <section className="journey-card" aria-label="Pesquisar caminho">
           <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
-              <p className="eyebrow">Percurso rápido</p>
+              <p className="eyebrow">{"Percurso r\u00e1pido"}</p>
               <h2>Para onde pretende ir?</h2>
             </div>
             <button type="button" onClick={() => setIsJourneyExpanded(!isJourneyExpanded)} style={{ background: "transparent", border: "none", color: "#fff", cursor: "pointer", padding: "8px" }}>
@@ -3905,7 +3905,7 @@ export default function BusMap() {
       </div>
 
       {mode === "bus" ? (
-        <section className="floating-search" aria-label="Pesquisar linha ou paragem">
+        <section className={linesOpen || activeMobilePanel === "journey" || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
             <span className="search-inline-icon" aria-hidden="true" />
             <input
@@ -4053,13 +4053,13 @@ export default function BusMap() {
       ) : null}
 
       {mode === "bus" ? (
-        <section className={activeMobilePanel === "navigation" ? "line-rail is-mobile-panel-open" : "line-rail"} aria-label="Filtro rápido por linha">
+        <section className={activeMobilePanel === "stops" ? "line-rail is-mobile-panel-open" : "line-rail"} aria-label={"Filtro r\u00e1pido por linha"}>
           <div className="line-rail-header">
             <div className="line-rail-actions">
               <button
                 className="lines-button is-active"
                 onClick={() => {
-                  setActiveMobilePanel("stops");
+                  setActiveMobilePanel("navigation");
                   setLinesOpen(true);
                   setIsJourneyExpanded(false);
                   setIsSearchFocused(false);
@@ -4069,7 +4069,7 @@ export default function BusMap() {
                 style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}
               >
                 <span aria-hidden="true">≡</span>
-                <span>Paragens</span>
+                <span>{"Navega\u00e7\u00e3o"}</span>
               </button>
               <button className="refresh-button icon-button" onClick={() => void refreshVehicleSnapshot()} aria-label="Atualizar" title="Atualizar" style={{ width: "auto", flex: "0 0 32px", height: "32px", borderLeftWidth: "1px", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}>
                 <RefreshIcon />
@@ -4153,7 +4153,7 @@ export default function BusMap() {
       </section>
 
       {settingsOpen && activeMobilePanel === "settings" ? (
-        <section className="mobile-settings-popover" aria-label="Definições rápidas">
+        <section className="mobile-settings-popover" aria-label={"Defini\u00e7\u00f5es r\u00e1pidas"}>
           <button
             type="button"
             onClick={() => {
@@ -4162,11 +4162,17 @@ export default function BusMap() {
               setActiveMobilePanel(null);
             }}
           >
-            Sobre
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-about" aria-hidden="true" />
+              Sobre
+            </span>
           </button>
-          <button type="button" disabled title="Disponível futuramente">
-            Modo claro
-            <span>em breve</span>
+          <button type="button" disabled title="Dispon�vel futuramente">
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-theme" aria-hidden="true" />
+              Modo claro
+            </span>
+            <small>em breve</small>
           </button>
           <button
             type="button"
@@ -4176,33 +4182,39 @@ export default function BusMap() {
               setActiveMobilePanel(null);
             }}
           >
-            Donativos
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-donate" aria-hidden="true" />
+              Donativos
+            </span>
           </button>
           <button type="button" onClick={() => void refreshVehicleSnapshot()}>
-            Atualizar dados
+            <span className="settings-menu-label">
+              <span className="settings-menu-icon settings-menu-icon-refresh" aria-hidden="true" />
+              Atualizar dados
+            </span>
           </button>
         </section>
       ) : null}
 
-      <nav className="mobile-nav-pill" aria-label="Navegação principal mobile">
+      <nav className="mobile-nav-pill" aria-label={"Navega\u00e7\u00e3o principal mobile"}>
         <button
           type="button"
           className={activeMobilePanel === "navigation" ? "is-active" : ""}
           onClick={() => {
             const shouldOpen = activeMobilePanel !== "navigation";
             setMode("bus");
-            setLinesOpen(false);
+            setLinesOpen(shouldOpen);
             setIsJourneyExpanded(false);
             setIsSearchFocused(false);
             setSettingsOpen(false);
             searchInputRef.current?.blur();
             setActiveMobilePanel(shouldOpen ? "navigation" : null);
           }}
-          aria-label="Navegação: linhas favoritas"
-          title="Navegação"
+          aria-label={"Navega\u00e7\u00e3o: linhas favoritas"}
+          title={"Navega\u00e7\u00e3o"}
         >
           <NavRouteIcon />
-          <span>Navegação</span>
+          <span>{"Navega\u00e7\u00e3o"}</span>
         </button>
         <button
           type="button"
@@ -4226,11 +4238,11 @@ export default function BusMap() {
         </button>
         <button
           type="button"
-          className={activeMobilePanel === "stops" && linesOpen ? "is-active" : ""}
+          className={activeMobilePanel === "stops" ? "is-active" : ""}
           onClick={() => {
-            const shouldOpen = activeMobilePanel !== "stops" || !linesOpen;
+            const shouldOpen = activeMobilePanel !== "stops";
             setMode("bus");
-            setLinesOpen(shouldOpen);
+            setLinesOpen(false);
             setIsJourneyExpanded(false);
             setIsSearchFocused(false);
             setSettingsOpen(false);
@@ -4255,11 +4267,11 @@ export default function BusMap() {
             setSettingsOpen(shouldOpen);
             setActiveMobilePanel(shouldOpen ? "settings" : null);
           }}
-          aria-label="Definições"
-          title="Definições"
+          aria-label={"Defini\u00e7\u00f5es"}
+          title={"Defini\u00e7\u00f5es"}
         >
           <NavSettingsIcon />
-          <span>Definições</span>
+          <span>{"Defini\u00e7\u00f5es"}</span>
         </button>
       </nav>
 
@@ -4431,11 +4443,11 @@ export default function BusMap() {
 
       {linesOpen ? (
         <div className="modal-backdrop" role="presentation" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }}>
-          <section className="lines-modal" role="dialog" aria-modal="true" aria-label="Paragens e favoritos" onClick={(event) => event.stopPropagation()}>
+          <section className={activeMobilePanel === "navigation" ? "lines-modal is-navigation-modal" : "lines-modal"} role="dialog" aria-modal="true" aria-label={activeMobilePanel === "navigation" ? "Navega\u00e7\u00e3o e favoritos" : "Paragens e favoritos"} onClick={(event) => event.stopPropagation()}>
             <header className="lines-modal-header">
               <div>
                 <p className="eyebrow">STCP</p>
-                <h2>Paragens</h2>
+                <h2>{activeMobilePanel === "navigation" ? "Navega\u00e7\u00e3o" : "Paragens"}</h2>
               </div>
               <button className="modal-close" onClick={() => { setLinesOpen(false); setActiveMobilePanel(null); }} aria-label="Fechar paragens">
                 x
