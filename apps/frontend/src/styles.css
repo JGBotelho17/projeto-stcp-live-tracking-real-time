@@ -2067,17 +2067,11 @@ h2 {
 }
 
 .mobile-device-preview .maplibregl-ctrl-bottom-left {
-  bottom: 92px;
-  left: 140px;
-  opacity: 0.72;
-  transform: scale(0.78);
-  transform-origin: left bottom;
+  display: none;
 }
 
 .mobile-device-preview .maplibregl-ctrl-attrib {
-  border-radius: 999px;
-  background: rgb(8 12 17 / 78%);
-  color: #c8d2dd;
+  display: none;
 }
 
 .mobile-device-preview .journey-card,

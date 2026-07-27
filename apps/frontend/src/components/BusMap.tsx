@@ -469,7 +469,6 @@ export default function BusMap() {
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
     map.addControl(new maplibregl.NavigationControl({ visualizePitch: false, showCompass: false }), "bottom-right");
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
     map.on("load", () => {
       void setupMapLayers(map);
     });
