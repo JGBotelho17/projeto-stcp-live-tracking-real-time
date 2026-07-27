@@ -4240,6 +4240,7 @@ export default function BusMap() {
             setIsJourneyExpanded(false);
             setIsSearchFocused(false);
             setSettingsOpen(false);
+            setIsLinesFilterExpanded(shouldOpen);
             searchInputRef.current?.blur();
             setActiveMobilePanel(shouldOpen ? "stops" : null);
           }}
