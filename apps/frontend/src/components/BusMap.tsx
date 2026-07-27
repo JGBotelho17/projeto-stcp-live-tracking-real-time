@@ -4001,9 +4001,10 @@ export default function BusMap() {
               maxHeight: "300px",
               overflowY: "auto",
               zIndex: 10,
-              display: "flex"
+              display: "grid",
+              gap: "10px"
             }}>
-              <div style={{ flex: 1, padding: "8px", borderRight: "1px solid rgba(255,255,255,0.1)" }}>
+              <div style={{ padding: "8px", borderBottom: "1px solid rgba(255,255,255,0.1)" }}>
                 <h4 style={{ margin: "0 0 8px 0", fontSize: "0.8rem", color: "#8a96a3", textTransform: "uppercase" }}>Linhas</h4>
                 {searchLineSuggestions.length === 0 ? (
                   <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: 0 }}>Sem resultados</p>
@@ -4058,7 +4059,7 @@ export default function BusMap() {
                   </ul>
                 )}
               </div>
-              <div style={{ flex: 1, padding: "8px" }}>
+              <div style={{ padding: "8px" }}>
                 <h4 style={{ margin: "0 0 8px 0", fontSize: "0.8rem", color: "#8a96a3", textTransform: "uppercase" }}>Paragens</h4>
                 {searchStopSuggestions.length === 0 ? (
                   <p style={{ fontSize: "0.85rem", color: "#6b7280", margin: 0 }}>Sem resultados</p>
