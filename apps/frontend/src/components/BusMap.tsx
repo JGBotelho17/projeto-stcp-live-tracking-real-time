@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import maplibregl, { type GeoJSONSource, type Map as MapLibreMap } from "maplibre-gl";
 import { clamp, lerp, lerpAngle } from "../geo/lerp";
 import { apiBaseUrl, socket } from "../realtime/socket";
+import { HARDCODED_STCP_LINES } from "../data/stcp_lines";
 import type {
   AnimatedVehicle,
   LinesPayload,
@@ -61,12 +62,41 @@ const BUS_LINE_FAMILIES = [
   { key: "300", color: "#f7d154", text: "#06100f" },
   { key: "400", color: "#35b779", text: "#06100f" },
   { key: "500", color: "#2bb7d6", text: "#06100f" },
-  { key: "600", color: "#3d7cff", text: "#ffffff" },
+  { key: "600", color: "#16a34a", text: "#ffffff" },
   { key: "700", color: "#8b5cf6", text: "#ffffff" },
   { key: "800", color: "#e255a1", text: "#ffffff" },
   { key: "900", color: "#9ad84f", text: "#06100f" },
+  { key: "eletrico", color: "#d84315", text: "#ffffff" },
+  { key: "madrugada", color: "#1e3a8a", text: "#ffffff" },
   { key: "other", color: "#7de0d4", text: "#06100f" }
 ] as const;
+
+export function getLineFamilyKey(lineNumber: string) {
+  if (["1", "18", "22"].includes(lineNumber)) return "eletrico";
+  if (lineNumber.endsWith("M")) return "madrugada";
+  const match = lineNumber.match(/\d+/);
+  if (!match) return "other";
+
+  const family = Math.floor(Number(match[0]) / 100) * 100;
+  return family >= 100 && family <= 900 ? String(family) : "other";
+}
+
+export function getGroupLabel(lineNumber: string) {
+  const family = getLineFamilyKey(lineNumber);
+  switch (family) {
+    case "200": return "Porto (Ocidental)";
+    case "300": return "Porto (Circular)";
+    case "400": return "Porto (Oriental)";
+    case "500": return "Matosinhos";
+    case "600": return "Maia";
+    case "700": return "Valongo";
+    case "800": return "Gondomar";
+    case "900": return "Vila Nova de Gaia";
+    case "madrugada": return "Rede da Madrugada";
+    case "eletrico": return "Elétricos";
+    default: return "Zonas Locais";
+  }
+}
 const METRO_LINES_SOURCE_ID = "metro-lines";
 const METRO_STATIONS_SOURCE_ID = "metro-stations";
 const METRO_TRAINS_SOURCE_ID = "metro-estimated-trains";
@@ -225,6 +255,10 @@ function toDatetimeLocalValue(date: Date) {
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
 }
 
+function normalizeLineReference(lineNumber: string) {
+  return lineNumber.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
 function StcpLogo() {
   return (
     <img className="transport-logo stcp-wordmark" src="/brand-logos/stcp-logo.svg" alt="" aria-hidden="true" />
@@ -276,7 +310,7 @@ export default function BusMap() {
   const routeShapeFallbackRef = useRef<globalThis.Map<string, RouteShape>>(new globalThis.Map());
   const routeShapeCandidatesRef = useRef<globalThis.Map<string, RouteShape[]>>(new globalThis.Map());
   const selectedIdRef = useRef<string | null>(null);
-  const routeOverlayOwnerRef = useRef<"vehicle" | "stop" | "journey" | null>(null);
+  const routeOverlayOwnerRef = useRef<"vehicle" | "stop" | "journey" | "line" | null>(null);
   const popupRef = useRef<maplibregl.Popup | null>(null);
   const popupHtmlRef = useRef("");
   const stopPopupRef = useRef<maplibregl.Popup | null>(null);
@@ -295,7 +329,7 @@ export default function BusMap() {
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
   const [isJourneyExpanded, setIsJourneyExpanded] = useState(true);
-  const [isLinesFilterExpanded, setIsLinesFilterExpanded] = useState(false);
+  const [isLinesFilterExpanded, setIsLinesFilterExpanded] = useState(true);
   const [vehicleCount, setVehicleCount] = useState(0);
   const [stopCount, setStopCount] = useState(0);
   const [metroStationCount, setMetroStationCount] = useState(0);
@@ -306,7 +340,87 @@ export default function BusMap() {
   const [linesOpen, setLinesOpen] = useState(false);
   const [linesLoading, setLinesLoading] = useState(false);
   const [linesError, setLinesError] = useState<string | null>(null);
-  const [linesPayload, setLinesPayload] = useState<LinesPayload | null>(null);
+  const [linesPayload, setLinesPayloadState] = useState<LinesPayload | null>(null);
+  const linesPayloadRef = useRef<LinesPayload | null>(null);
+
+  const setLinesPayload = useCallback((payload: LinesPayload | null) => {
+    linesPayloadRef.current = payload;
+    setLinesPayloadState(payload);
+  }, []);
+
+  const lineSearchIndex = useMemo(() => {
+    const liveLines = linesPayload?.lines ?? [];
+    const liveByNumber = new globalThis.Map<string, typeof liveLines[number]>();
+    for (const line of liveLines) {
+      liveByNumber.set(line.number.toUpperCase(), line);
+    }
+
+    const merged: TransitLine[] = Object.entries(HARDCODED_STCP_LINES).map(([number, name]) => {
+      const live = liveByNumber.get(number.toUpperCase());
+      if (live) return live;
+      return {
+        id: `stub-${number}`,
+        number,
+        name,
+        color: "",
+        text_color: "",
+        directions: []
+      };
+    });
+
+    return merged.map((line) => {
+      const numberNorm = normalizeSearchText(line.number);
+      const nameNorm = normalizeSearchText(line.name);
+      const headsigns: string[] = [];
+      const stopNames: string[] = [];
+      for (const direction of line.directions) {
+        headsigns.push(normalizeSearchText(direction.headsign));
+        for (const stop of direction.stops) {
+          stopNames.push(normalizeSearchText(stop.stop_name));
+        }
+      }
+      return {
+        line,
+        numberNorm,
+        nameNorm,
+        headsigns,
+        stopNames
+      };
+    });
+  }, [linesPayload]);
+
+  const allUniqueStops = useMemo(() => {
+    const lines = linesPayload?.lines ?? [];
+    const uniqueStops = new Map<string, { id: string; name: string; nameNorm: string; idNorm: string; lat: number; lon: number }>();
+    
+    for (const line of lines) {
+      for (const direction of line.directions) {
+        for (const stop of direction.stops) {
+          if (!uniqueStops.has(stop.stop_id)) {
+            uniqueStops.set(stop.stop_id, {
+              id: stop.stop_id,
+              name: stop.stop_name,
+              nameNorm: normalizeSearchText(stop.stop_name),
+              idNorm: normalizeSearchText(stop.stop_id),
+              lat: stop.latitude,
+              lon: stop.longitude
+            });
+          }
+        }
+      }
+    }
+    return Array.from(uniqueStops.values());
+  }, [linesPayload]);
+
+  const allLinesSearchIndex = useMemo(() => {
+    const lines = linesPayload?.lines ?? [];
+    return lines.map((line) => ({
+      line,
+      numberNorm: normalizeSearchText(line.number),
+      nameNorm: normalizeSearchText(line.name),
+      headsignsNorm: line.directions.map((d) => normalizeSearchText(d.headsign))
+    }));
+  }, [linesPayload]);
   const [lineSearch, setLineSearch] = useState("");
   const [expandedLineId, setExpandedLineId] = useState<string | null>(null);
   const [favoritesOpen, setFavoritesOpen] = useState(false);
@@ -335,32 +449,36 @@ export default function BusMap() {
   const [infoDialog, setInfoDialog] = useState<"about" | "donate" | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
 
+  const linesById = useMemo(() => {
+    const map = new globalThis.Map<string, TransitLine>();
+    if (!linesPayload) return map;
+    for (const line of linesPayload.lines) {
+      if (!map.has(line.id)) map.set(line.id, line);
+      if (!map.has(line.number)) map.set(line.number, line);
+      if (!map.has(line.id.toUpperCase())) map.set(line.id.toUpperCase(), line);
+      if (!map.has(line.number.toUpperCase())) map.set(line.number.toUpperCase(), line);
+    }
+    return map;
+  }, [linesPayload]);
+
+  const canonicalLineCache = useMemo(() => new globalThis.Map<string, string>(), [linesPayload]);
+  const searchMatchCache = useMemo(() => new globalThis.Map<string, boolean>(), [linesPayload]);
+
   const availableLines = useMemo(() => {
+    const seen = new Set<string>();
+
     return [...vehiclesRef.current.values()]
-      .map((vehicle) => vehicle.current.line_number)
-      .filter((line, index, lines) => lines.indexOf(line) === index)
+      .map((vehicle) => getCanonicalLineNumber(vehicle.current.line_number))
+      .filter((line) => {
+        if (!HARDCODED_STCP_LINES[line]) return false;
+        if (seen.has(line)) return false;
+        seen.add(line);
+        return true;
+      })
       .sort((a, b) => a.localeCompare(b, "pt-PT", { numeric: true }));
-  }, [dataVersion]);
+  }, [dataVersion, linesPayload]);
 
-  const filteredTransitLines = useMemo(() => {
-    const query = lineSearch.trim().toLowerCase();
-    const lines = linesPayload?.lines ?? [];
 
-    if (!query) return lines;
-
-    return lines.filter((line) => {
-      const stopMatches = line.directions.some((direction) =>
-        direction.stops.some((stop) => stop.stop_name.toLowerCase().includes(query))
-      );
-
-      return (
-        line.number.toLowerCase().includes(query) ||
-        line.name.toLowerCase().includes(query) ||
-        line.directions.some((direction) => direction.headsign.toLowerCase().includes(query)) ||
-        stopMatches
-      );
-    });
-  }, [lineSearch, linesPayload]);
 
   const favoriteLines = useMemo(() => {
     const lines = linesPayload?.lines ?? [];
@@ -374,26 +492,117 @@ export default function BusMap() {
   }, [linesPayload, selectedFavoriteLine]);
 
   const linesAvailableForFavorite = useMemo(() => {
+    const seen = new Set<string>();
+
     return (linesPayload?.lines ?? [])
+      .filter((line) => {
+        const normalized = normalizeLineReference(line.number);
+        if (seen.has(normalized)) return false;
+        seen.add(normalized);
+        return true;
+      })
       .sort((a, b) => a.number.localeCompare(b.number, "pt-PT", { numeric: true }));
   }, [linesPayload]);
 
   const railLines = useMemo(() => {
-    return [
-      ...favoriteLineNumbers,
-      ...availableLines.filter((line) => !favoriteLineNumbers.includes(line))
-    ];
-  }, [availableLines, favoriteLineNumbers]);
+    const orderedLineNumbers: string[] = [];
+    const seen = new Set<string>();
 
-  const visibleRailLines = isLinesFilterExpanded || favoriteLineNumbers.length === 0 ? railLines : favoriteLineNumbers;
+    for (const lineNumber of favoriteLineNumbers) {
+      if (!lineNumber?.trim()) continue;
+      const normalized = normalizeLineReference(lineNumber);
+      if (!seen.has(normalized)) {
+        orderedLineNumbers.push(lineNumber);
+        seen.add(normalized);
+      }
+    }
+
+    const others: string[] = [];
+    const addOther = (lineNumber: string) => {
+      if (!lineNumber?.trim()) return;
+      const upper = lineNumber.trim().toUpperCase();
+      if (!HARDCODED_STCP_LINES[upper]) return; // Only allow valid STCP lines
+      const normalized = normalizeLineReference(lineNumber);
+      if (!seen.has(normalized)) {
+        others.push(upper);
+        seen.add(normalized);
+      }
+    };
+
+    for (const lineNumber of availableLines) {
+      addOther(lineNumber);
+    }
+
+    const canonicalLineNumbers = Object.keys(HARDCODED_STCP_LINES);
+    for (const lineNumber of canonicalLineNumbers) {
+      addOther(lineNumber);
+    }
+
+    others.sort((a, b) => {
+      const getSortGroup = (line: string) => {
+        if (["1", "18", "22"].includes(line)) return 2;
+        if (line.endsWith("M")) return 1;
+        return 0;
+      };
+      
+      const groupA = getSortGroup(a);
+      const groupB = getSortGroup(b);
+      
+      if (groupA !== groupB) return groupA - groupB;
+      return a.localeCompare(b, "pt-PT", { numeric: true });
+    });
+
+    return [...orderedLineNumbers, ...others];
+  }, [availableLines, favoriteLineNumbers, linesPayload]);
+
+  const filteredTransitLines = useMemo(() => {
+    const query = normalizeSearchText(lineSearch);
+    
+    const getSortGroup = (line: string) => {
+      if (["1", "18", "22"].includes(line)) return 2;
+      if (line.endsWith("M")) return 1;
+      return 0;
+    };
+
+    if (!query) {
+      return lineSearchIndex.map((item) => item.line).sort((a, b) => {
+        const groupA = getSortGroup(a.number);
+        const groupB = getSortGroup(b.number);
+        if (groupA !== groupB) return groupA - groupB;
+        return a.number.localeCompare(b.number, "pt-PT", { numeric: true });
+      });
+    }
+
+    const filtered = lineSearchIndex.filter((item) => {
+      return (
+        item.numberNorm.includes(query) ||
+        item.nameNorm.includes(query) ||
+        item.headsigns.some((h) => h.includes(query)) ||
+        item.stopNames.some((s) => s.includes(query))
+      );
+    }).map((item) => item.line);
+
+    return filtered.sort((a, b) => {
+      const groupA = getSortGroup(a.number);
+      const groupB = getSortGroup(b.number);
+      if (groupA !== groupB) return groupA - groupB;
+      return a.number.localeCompare(b.number, "pt-PT", { numeric: true });
+    });
+  }, [lineSearch, lineSearchIndex]);
+
+  const visibleRailLines = isLinesFilterExpanded ? railLines : favoriteLineNumbers;
 
   function toggleSelectedLineFilter(lineNumber: string) {
+    selectedIdRef.current = null;
+    setSelectedId(null);
     setSelectedLineFilters((current) =>
       current.includes(lineNumber) ? current.filter((entry) => entry !== lineNumber) : [...current, lineNumber]
     );
   }
 
   function selectSingleLineFilter(lineNumber: string) {
+    selectedIdRef.current = null;
+    setSelectedId(null);
     setSelectedLineFilters([lineNumber]);
   }
 
@@ -413,8 +622,7 @@ export default function BusMap() {
 
     map.dragRotate.disable();
     map.touchZoomRotate.disableRotation();
-    map.addControl(new maplibregl.NavigationControl({ visualizePitch: false, showCompass: false }), "bottom-right");
-    map.addControl(new maplibregl.AttributionControl({ compact: true }), "bottom-left");
+
     map.on("load", () => {
       void setupMapLayers(map);
     });
@@ -563,6 +771,12 @@ export default function BusMap() {
   }, [linesPayload, selectedId, selectedLineFilters]);
 
   useEffect(() => {
+    if (!selectedId) {
+      syncSelectedLineOverlay(selectedLineFilters);
+    }
+  }, [selectedLineFilters, linesPayload, selectedId]);
+
+  useEffect(() => {
     const query = originQuery.trim();
     if (!journeyOpen || isUserLocationOrigin(query) || query.length < 3) {
       setOriginSuggestions([]);
@@ -621,6 +835,19 @@ export default function BusMap() {
       }
 
       const payload = (await response.json()) as LinesPayload;
+
+      // Force specific line colors
+      for (const line of payload.lines) {
+        if (["1", "18", "22"].includes(line.number) || ["1", "18", "22"].includes(line.id)) {
+          line.color = "#d84315";
+          line.text_color = "#ffffff";
+        }
+        if (["605"].includes(line.number) || ["605"].includes(line.id)) {
+          line.color = "#16a34a"; // Force Maia green
+          line.text_color = "#ffffff";
+        }
+      }
+
       setLinesPayload(payload);
       setExpandedLineId(payload.lines[0]?.id ?? null);
       return payload;
@@ -653,6 +880,7 @@ export default function BusMap() {
 
       return [...current, lineNumber].sort((a, b) => a.localeCompare(b, "pt-PT", { numeric: true }));
     });
+    setSelectedLineFilters((current) => current.filter((entry) => entry !== lineNumber));
   }
 
   function selectFavoriteLine(lineNumber: string) {
@@ -799,7 +1027,7 @@ export default function BusMap() {
     const map = mapRef.current;
     if (!map) return;
 
-    const payload = linesPayload ?? (await loadLines());
+    const payload = linesPayloadRef.current ?? linesPayload ?? (await loadLines());
     const arrivals = payload ? getStopArrivals(stop.id, payload.lines) : [];
 
     replaceStopPopup();
@@ -817,7 +1045,7 @@ export default function BusMap() {
       closeOnClick: false,
       className: "stop-eta-popup stop-overview-popup",
       offset: [0, -12],
-      maxWidth: "310px"
+      maxWidth: "460px"
     }).on("close", () => {
       stopPopupRef.current = null;
       if (replacingStopPopupRef.current) return;
@@ -851,8 +1079,8 @@ export default function BusMap() {
           vehicleId: bestArrival?.vehicleId.replace(/^stcp-/, "") ?? null,
           etaLabel: bestArrival?.estimate.label ?? "sem veículo ativo",
           distanceLabel: bestArrival ? formatDistanceMeters(bestArrival.estimate.distanceMeters) : "sem previsão",
-          color: line.color,
-          textColor: line.text_color
+          color: line.color || getLineTheme(line.number).color,
+          textColor: line.text_color || getLineTheme(line.number).text
         });
       }
     }
@@ -908,7 +1136,7 @@ export default function BusMap() {
           coordinates: shape.coordinates
         },
         properties: {
-          color: line.color,
+          color: line.color || getLineTheme(line.number).color,
           line_number: line.number
         }
       });
@@ -920,7 +1148,7 @@ export default function BusMap() {
 
         const bestArrival = getBestVehicleArrivalForStop(line.number, direction.direction_id, routeStop, shape);
         const properties = {
-          color: line.color,
+          color: line.color || getLineTheme(line.number).color,
           id: routeStop.stop_id,
           name: routeStop.stop_name,
           sequence: index + 1,
@@ -1878,15 +2106,16 @@ export default function BusMap() {
 
     for (const [vehicleId, animated] of vehiclesRef.current) {
       const vehicle = getInterpolatedVehicle(vehicleId, now) ?? animated.current;
+      const canonicalLineNumber = getCanonicalLineNumber(animated.current.line_number);
       const visible =
         normalizedLineFilters.length === 0 ||
-        normalizedLineFilters.some((lineFilter) => lineMatchesSearch(animated.current.line_number, lineFilter));
+        normalizedLineFilters.some((lineFilter) => lineMatchesSearch(canonicalLineNumber, lineFilter));
       if (!visible) continue;
       if (vehicleId === selectedIdRef.current) {
         selectedVehicleForPopup = vehicle;
       }
 
-      const lineTheme = getLineTheme(animated.current.line_number);
+      const lineTheme = getLineTheme(canonicalLineNumber);
 
       features.push({
         type: "Feature",
@@ -1896,10 +2125,10 @@ export default function BusMap() {
         },
         properties: {
           vehicle_id: vehicleId,
-          line_number: animated.current.line_number,
+          line_number: canonicalLineNumber,
           bearing: vehicle.bearing,
           opacity: getVehicleOpacity(animated.current),
-          icon_id: getBusIconId(animated.current.line_number),
+          icon_id: getBusIconId(canonicalLineNumber),
           line_color: lineTheme.color,
           text_color: lineTheme.text
         }
@@ -2033,12 +2262,12 @@ export default function BusMap() {
       const feature = event.features?.[0];
       if (!feature || feature.geometry.type !== "Point" || !Array.isArray(feature.geometry.coordinates)) return;
 
+      const stopId = String(feature.properties?.id ?? feature.properties?.stop_id ?? "");
+      const stopName = String(feature.properties?.name ?? feature.properties?.stop_name ?? "Paragem");
+
       void showStopOverviewPopup(
         [Number(feature.geometry.coordinates[0]), Number(feature.geometry.coordinates[1])],
-        {
-          id: String(feature.properties?.id ?? ""),
-          name: String(feature.properties?.name ?? "Paragem")
-        }
+        { id: stopId, name: stopName }
       );
     });
 
@@ -2547,11 +2776,11 @@ export default function BusMap() {
         type: "circle",
         source: SELECTED_ROUTE_STOPS_SOURCE_ID,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 7, 16, 13],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 7],
           "circle-color": ["coalesce", ["get", "color"], "#7de0d4"],
           "circle-opacity": 0.3,
           "circle-stroke-color": "#f6f8fb",
-          "circle-stroke-width": 1.1
+          "circle-stroke-width": 0.6
         }
       });
     }
@@ -2562,10 +2791,10 @@ export default function BusMap() {
         type: "circle",
         source: SELECTED_ROUTE_STOPS_SOURCE_ID,
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4.8, 16, 7.8],
+          "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 3.5],
           "circle-color": ["coalesce", ["get", "color"], "#7de0d4"],
           "circle-stroke-color": "#05080c",
-          "circle-stroke-width": 2.2
+          "circle-stroke-width": 1.2
         }
       });
     }
@@ -2859,14 +3088,20 @@ export default function BusMap() {
     };
   }
 
+  function getRouteIdForLineNumber(lineNumber: string) {
+    const line = linesPayload?.lines.find((l) => l.number.toUpperCase() === lineNumber.toUpperCase());
+    return line ? line.id : lineNumber;
+  }
+
   function getShapeForVehicle(vehicle: VehiclePosition) {
+    const routeId = getRouteIdForLineNumber(vehicle.line_number);
     if (vehicle.direction_id) {
-      const exact = routeShapesRef.current.get(routeShapeKey(vehicle.line_number, vehicle.direction_id));
+      const exact = routeShapesRef.current.get(routeShapeKey(routeId, vehicle.direction_id));
       if (exact) return exact;
     }
 
-    const candidates = routeShapeCandidatesRef.current.get(vehicle.line_number) ?? [];
-    if (!candidates.length) return routeShapeFallbackRef.current.get(vehicle.line_number);
+    const candidates = routeShapeCandidatesRef.current.get(routeId) ?? [];
+    if (!candidates.length) return routeShapeFallbackRef.current.get(routeId);
 
     let bestShape: RouteShape | null = null;
     let bestScore = Number.POSITIVE_INFINITY;
@@ -2883,7 +3118,7 @@ export default function BusMap() {
       }
     }
 
-    return bestShape ?? routeShapeFallbackRef.current.get(vehicle.line_number);
+    return bestShape ?? routeShapeFallbackRef.current.get(routeId);
   }
 
   function buildRouteShape(shape: RouteShapePayload["shapes"][number]): RouteShape {
@@ -3037,7 +3272,7 @@ export default function BusMap() {
   }
 
   function getLineTheme(lineNumber: string) {
-    const lineData = linesPayload?.lines.find((entry) => entry.number === lineNumber || entry.id === lineNumber);
+    const lineData = linesById.get(lineNumber);
     if (lineData?.color) {
       return { 
         key: lineData.number, 
@@ -3050,16 +3285,8 @@ export default function BusMap() {
     return BUS_LINE_FAMILIES.find((family) => family.key === familyKey) ?? BUS_LINE_FAMILIES[BUS_LINE_FAMILIES.length - 1];
   }
 
-  function getLineFamilyKey(lineNumber: string) {
-    const match = lineNumber.match(/\d+/);
-    if (!match) return "other";
-
-    const family = Math.floor(Number(match[0]) / 100) * 100;
-    return family >= 100 && family <= 900 ? String(family) : "other";
-  }
-
   function getBusIconId(lineNumber: string) {
-    const lineData = linesPayload?.lines.find(l => l.number === lineNumber || l.id === lineNumber);
+    const lineData = linesById.get(lineNumber);
     if (lineData) {
       return `${BUS_ICON_PREFIX}-${lineData.number}`;
     }
@@ -3162,6 +3389,99 @@ export default function BusMap() {
           distance_meters: nextArrival?.estimate.distanceMeters ?? null
         }
       };
+    });
+
+    selectedRouteStopClickTargetsRef.current = stopFeatures.map((feature) => ({
+      coordinates: feature.geometry.coordinates,
+      properties: feature.properties
+    }));
+
+    stopsSource.setData({
+      type: "FeatureCollection",
+      features: stopFeatures
+    });
+  }
+
+  function syncSelectedLineOverlay(lineNumbers: string[]) {
+    const map = mapRef.current;
+    const routeSource = map?.getSource(SELECTED_ROUTE_SOURCE_ID) as GeoJSONSource | undefined;
+    const stopsSource = map?.getSource(SELECTED_ROUTE_STOPS_SOURCE_ID) as GeoJSONSource | undefined;
+    if (!routeSource || !stopsSource) return;
+
+    if (selectedIdRef.current) {
+      return;
+    }
+
+    if (lineNumbers.length === 0) {
+      if (routeOverlayOwnerRef.current === "line") {
+        clearSelectedRouteOverlay();
+      }
+      return;
+    }
+
+    routeOverlayOwnerRef.current = "line";
+
+    const features: any[] = [];
+    const stopFeatures: any[] = [];
+
+    for (const lineNumber of lineNumbers) {
+      const lineTheme = getLineTheme(lineNumber);
+      const routeId = getRouteIdForLineNumber(lineNumber);
+      const candidates = routeShapeCandidatesRef.current.get(routeId) ?? [];
+      const shapes = candidates.length > 0 ? candidates : (routeShapeFallbackRef.current.get(routeId) ? [routeShapeFallbackRef.current.get(routeId)!] : []);
+
+      for (const shape of shapes) {
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: shape.coordinates
+          },
+          properties: {
+            color: lineTheme.color,
+            line_number: lineNumber
+          }
+        });
+      }
+
+      const line = linesPayload?.lines.find((l) => l.number === lineNumber);
+      if (line) {
+        const uniqueStops = new Map<string, any>();
+        for (const direction of line.directions) {
+          for (const stop of direction.stops) {
+            uniqueStops.set(stop.stop_id, stop);
+          }
+        }
+
+        let index = 0;
+        for (const stop of uniqueStops.values()) {
+          stopFeatures.push({
+            type: "Feature",
+            geometry: {
+              type: "Point",
+              coordinates: [stop.longitude, stop.latitude]
+            },
+            properties: {
+              color: lineTheme.color,
+              id: stop.stop_id,
+              name: stop.stop_name,
+              sequence: index + 1,
+              line_number: lineNumber,
+              vehicle_id: null,
+              next_vehicle_id: null,
+              eta_label: "Sem estimativa",
+              eta_min: null,
+              distance_meters: null
+            }
+          });
+          index++;
+        }
+      }
+    }
+
+    routeSource.setData({
+      type: "FeatureCollection",
+      features
     });
 
     selectedRouteStopClickTargetsRef.current = stopFeatures.map((feature) => ({
@@ -3397,14 +3717,46 @@ export default function BusMap() {
     stopPopupRef.current = null;
   }
 
+  function getCanonicalLineNumber(lineNumber: string | null | undefined) {
+    const candidate = lineNumber?.trim();
+    if (!candidate) return "";
+    const candidateUpper = candidate.toUpperCase();
+
+    if (HARDCODED_STCP_LINES[candidateUpper]) {
+      return candidateUpper;
+    }
+
+    if (canonicalLineCache.has(candidateUpper)) {
+      return canonicalLineCache.get(candidateUpper)!;
+    }
+
+    let resolved = candidateUpper;
+    const exactMatches = (linesPayload?.lines ?? []).filter((entry) => {
+      const values = [entry.number, entry.id, entry.name]
+        .map((value) => value?.trim().toUpperCase())
+        .filter(Boolean) as string[];
+      return values.some((value) => normalizeLineReference(value) === normalizeLineReference(candidate));
+    });
+
+    if (exactMatches.length) {
+      const match = exactMatches.find(m => HARDCODED_STCP_LINES[m.number?.toUpperCase()]) ?? exactMatches[0];
+      resolved = match.number?.toUpperCase() ?? candidateUpper;
+    }
+
+    canonicalLineCache.set(candidateUpper, resolved);
+    return resolved;
+  }
+
   function createVehiclePopupHtml(vehicle: VehiclePosition, lineColor: string) {
     const vehicleNumber = vehicle.vehicle_id.replace(/^stcp-/, "");
-    const lineData = linesPayload?.lines.find(l => l.number === vehicle.line_number || l.id === vehicle.line_number);
-    const resolvedLineNumber = lineData ? lineData.number : vehicle.line_number;
+    const lineData = linesById.get(vehicle.line_number);
+    const resolvedLineNumber = getCanonicalLineNumber(vehicle.line_number) || lineData?.number || vehicle.line_number;
     const directionData = lineData?.directions.find((direction) => direction.direction_id === vehicle.direction_id) ?? null;
-    const directionTerminalStop = directionData?.stops.at(-1)?.stop_name ?? directionData?.headsign ?? "Direção não disponível";
+    const directionTerminalStop = directionData?.stops?.length
+      ? directionData.stops[directionData.stops.length - 1].stop_name
+      : null;
     const nextStop = escapeHtml(vehicle.next_stop_name ?? vehicle.next_stop_id ?? "Não disponível");
-    const directionLabel = escapeHtml(directionTerminalStop);
+    const directionLabel = escapeHtml(directionTerminalStop ?? directionData?.headsign ?? "Direção não disponível");
     const eta = vehicle.next_stop_eta_min === null ? "ETA não disponível" : `${vehicle.next_stop_eta_min} min até à próxima`;
     const gpsTime = new Date(vehicle.updated_at).toLocaleTimeString("pt-PT");
     const speed = vehicle.speed === null ? "" : `${Math.round(vehicle.speed * 3.6)} km/h`;
@@ -3425,8 +3777,9 @@ export default function BusMap() {
     `;
   }
 
-  function escapeHtml(value: string) {
-    return value
+  function escapeHtml(value: string | null | undefined) {
+    if (value == null) return "";
+    return String(value)
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")
       .replace(/>/g, "&gt;")
@@ -3445,26 +3798,37 @@ export default function BusMap() {
   function lineMatchesSearch(vehicleLineId: string, normalizedQuery: string) {
     const query = normalizeSearchText(normalizedQuery);
     if (!query) return true;
+    
+    const cacheKey = `${vehicleLineId}|${query}`;
+    if (searchMatchCache.has(cacheKey)) {
+      return searchMatchCache.get(cacheKey)!;
+    }
+
     const normalizedLine = normalizeSearchText(vehicleLineId);
     const isNumericQuery = /^\d+[a-z]?$/i.test(query);
 
-    const line = linesPayload?.lines.find((entry) => entry.id === vehicleLineId || entry.number === vehicleLineId);
+    const line = linesById.get(vehicleLineId);
     const exactLineExists = linesPayload?.lines.some((entry) => normalizeSearchText(entry.number) === query);
+    
+    let result = false;
     if (isNumericQuery) {
-      if (exactLineExists) return normalizedLine === query;
-      return normalizedLine.startsWith(query);
+      result = exactLineExists ? normalizedLine === query : normalizedLine.startsWith(query);
+    } else if (normalizedLine.includes(query)) {
+      result = true;
+    } else if (!line) {
+      result = false;
+    } else {
+      result = (
+        normalizeSearchText(line.name).includes(query) ||
+        line.directions.some((direction) =>
+          normalizeSearchText(direction.headsign).includes(query) ||
+          direction.stops.some((stop) => normalizeSearchText(stop.stop_name).includes(query))
+        )
+      );
     }
 
-    if (normalizedLine.includes(query)) return true;
-    if (!line) return false;
-
-    return (
-      normalizeSearchText(line.name).includes(query) ||
-      line.directions.some((direction) =>
-        normalizeSearchText(direction.headsign).includes(query) ||
-        direction.stops.some((stop) => normalizeSearchText(stop.stop_name).includes(query))
-      )
-    );
+    searchMatchCache.set(cacheKey, result);
+    return result;
   }
 
   function normalizeSearchText(value: string) {
@@ -3494,43 +3858,29 @@ export default function BusMap() {
     );
   }
   const searchLineSuggestions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = normalizeSearchText(searchQuery);
     if (!query || query.length < 1) return [];
-    const lines = linesPayload?.lines ?? [];
-    return lines.filter((line) => {
-      return (
-        line.number.toLowerCase().includes(query) ||
-        line.name.toLowerCase().includes(query) ||
-        line.directions.some((direction) => direction.headsign.toLowerCase().includes(query))
-      );
-    }).slice(0, 5);
-  }, [searchQuery, linesPayload]);
+    
+    return allLinesSearchIndex
+      .filter((item) => 
+        item.numberNorm.includes(query) ||
+        item.nameNorm.includes(query) ||
+        item.headsignsNorm.some((h) => h.includes(query))
+      )
+      .map((item) => item.line)
+      .slice(0, 5);
+  }, [searchQuery, allLinesSearchIndex]);
 
   const searchStopSuggestions = useMemo(() => {
-    const query = searchQuery.trim().toLowerCase();
+    const query = normalizeSearchText(searchQuery);
     if (!query || query.length < 3) return [];
-    const lines = linesPayload?.lines ?? [];
     
-    const uniqueStops = new Map<string, { id: string; name: string; lat: number; lon: number }>();
-    
-    for (const line of lines) {
-      for (const direction of line.directions) {
-        for (const stop of direction.stops) {
-          if (stop.stop_name.toLowerCase().includes(query)) {
-            if (!uniqueStops.has(stop.stop_id)) {
-              uniqueStops.set(stop.stop_id, {
-                id: stop.stop_id,
-                name: stop.stop_name,
-                lat: stop.latitude,
-                lon: stop.longitude
-              });
-            }
-          }
-        }
-      }
-    }
-    return Array.from(uniqueStops.values()).slice(0, 5);
-  }, [searchQuery, linesPayload]);
+    return allUniqueStops
+      .filter((stop) => 
+        stop.nameNorm.includes(query) || stop.idNorm.includes(query)
+      )
+      .slice(0, 5);
+  }, [searchQuery, allUniqueStops]);
 
   return (
     <main className="shell">
@@ -3764,7 +4114,12 @@ export default function BusMap() {
       {mode === "bus" ? (
         <section className="floating-search" aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
-            <span className="search-inline-icon" aria-hidden="true" />
+            <span className="search-inline-icon" aria-hidden="true">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#7de0d4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+            </span>
             <input
               value={searchQuery}
               onChange={(event) => setSearchQuery(event.target.value)}
@@ -3789,8 +4144,9 @@ export default function BusMap() {
             <div className="search-dropdown" style={{
               position: "absolute",
               top: "100%",
-              left: 0,
-              right: 0,
+              left: "50%",
+              transform: "translateX(-50%)",
+              width: "min(600px, calc(100vw - 36px))",
               background: "#111820",
               border: "1px solid rgba(255,255,255,0.1)",
               borderRadius: "8px",
@@ -3826,7 +4182,8 @@ export default function BusMap() {
                             }}
                             onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                             onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                            onClick={() => {
+                            onMouseDown={(e) => {
+                              e.preventDefault();
                               selectSingleLineFilter(line.id);
                               setSearchQuery(line.id);
                             }}
@@ -3872,7 +4229,8 @@ export default function BusMap() {
                           }}
                           onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.05)"}
                           onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
-                          onClick={() => {
+                          onMouseDown={(e) => {
+                            e.preventDefault();
                             setSearchQuery("");
                             mapRef.current?.easeTo({
                               center: [stop.lon, stop.lat],
@@ -3895,7 +4253,7 @@ export default function BusMap() {
       ) : null}
 
       {mode === "bus" ? (
-        <section className="line-rail" aria-label="Filtro rápido por linha">
+        <section className={`line-rail ${isLinesFilterExpanded ? "is-expanded" : "is-collapsed"}`} aria-label="Filtro rápido por linha">
           <div className="line-rail-header">
             <div className="line-rail-actions">
               <button className="lines-button is-active" onClick={() => setLinesOpen(true)} style={{ width: "100%", minWidth: 0, padding: "0 8px", borderLeftWidth: "1px", height: "32px", display: "flex", alignItems: "center", justifyContent: "center", gap: "6px", boxSizing: "border-box" }}>
@@ -3906,40 +4264,81 @@ export default function BusMap() {
                 <RefreshIcon />
               </button>
             </div>
-            <button className="line-rail-toggle" onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} aria-label={isLinesFilterExpanded ? "Fechar lista de linhas" : "Abrir lista de linhas"}>
-              <ChevronIcon expanded={!isLinesFilterExpanded} />
-            </button>
             <span>Filtrar por</span>
             <button className={selectedLineFilters.length === 0 ? "is-active" : ""} onClick={() => setSelectedLineFilters([])}>
               Todas
             </button>
           </div>
           <div className="line-rail-list">
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
-              {visibleRailLines.map((line) => {
-                const lineTheme = getLineTheme(line);
-                const isActive = selectedLineFilters.includes(line);
-                const isFavorite = favoriteLineNumbers.includes(line);
+            {visibleRailLines.length === 0 ? (
+              <div style={{ padding: "6px", fontSize: "0.72rem", color: "rgba(255,255,255,0.4)", textAlign: "center" }}>
+                Sem favoritos
+              </div>
+            ) : (
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", alignItems: "start" }}>
+                {(() => {
+                  let currentGroup = "";
+                  return visibleRailLines.map((line) => {
+                    const isFavorite = favoriteLineNumbers.includes(line);
+                    const label = isFavorite ? "Favoritos" : getGroupLabel(line);
+                    const showHeader = label !== currentGroup;
+                    if (showHeader) {
+                      currentGroup = label;
+                    }
 
-                return (
-                  <button
-                    key={line}
-                    className={isActive ? "is-active" : ""}
-                    onClick={() => toggleSelectedLineFilter(line)}
-                    style={{
-                      borderColor: lineTheme.color,
-                      borderLeftColor: lineTheme.color,
-                      background: isActive ? lineTheme.color : undefined,
-                      color: isActive ? lineTheme.text : "#ffffff"
-                    }}
-                    title={`Mostrar linha ${line}`}
-                  >
-                    {isFavorite ? `★ ${line}` : line}
-                  </button>
-                );
-              })}
-            </div>
+                    const lineTheme = getLineTheme(line);
+                    const isActive = selectedLineFilters.includes(line);
+
+                    return (
+                      <Fragment key={line}>
+                        {showHeader && (
+                          <div style={{
+                            gridColumn: "1 / -1",
+                            fontSize: '0.6rem',
+                            textTransform: 'uppercase',
+                            color: 'rgba(255, 255, 255, 0.5)',
+                            marginTop: '8px',
+                            marginBottom: '2px',
+                            fontWeight: 600,
+                            textAlign: 'center',
+                            letterSpacing: '0.5px'
+                          }}>
+                            {label}
+                          </div>
+                        )}
+                        <button
+                          className={`${isActive ? "is-active" : ""} ${isFavorite ? "is-favorite" : ""}`}
+                          onClick={() => toggleSelectedLineFilter(line)}
+                          style={{
+                            borderColor: lineTheme.color,
+                            borderLeftColor: lineTheme.color,
+                            background: isActive ? lineTheme.color : undefined,
+                            color: isActive ? lineTheme.text : "#ffffff"
+                          }}
+                          title={`Mostrar linha ${line}`}
+                        >
+                          <span className="line-number-text">{line}</span>
+                          <span
+                            className="line-favorite-star"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              toggleFavoriteLine(line);
+                            }}
+                            title={isFavorite ? `Remover linha ${line} dos favoritos` : `Adicionar linha ${line} aos favoritos`}
+                          >
+                            {isFavorite ? "★" : "☆"}
+                          </span>
+                        </button>
+                      </Fragment>
+                    );
+                  });
+                })()}
+              </div>
+            )}
           </div>
+          <button className="line-rail-toggle" onClick={() => setIsLinesFilterExpanded(!isLinesFilterExpanded)} aria-label={isLinesFilterExpanded ? "Colapsar lista de linhas" : "Expandir lista de linhas"} style={{ marginTop: "4px" }}>
+            <ChevronIcon expanded={isLinesFilterExpanded} />
+          </button>
         </section>
       ) : null}
 
@@ -4163,11 +4562,14 @@ export default function BusMap() {
             </header>
 
             <div className="lines-search">
-              <span aria-hidden="true">⌕</span>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#7de0d4" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flex: "0 0 16px" }}>
+                <circle cx="11" cy="11" r="8" />
+                <line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
               <input
                 value={lineSearch}
                 onChange={(event) => setLineSearch(event.target.value)}
-                placeholder="Procurar linha, destino ou paragem"
+                placeholder="Procurar linha, destino ou paragem..."
               />
               {lineSearch ? (
                 <button onClick={() => setLineSearch("")} aria-label="Limpar pesquisa">
@@ -4177,59 +4579,6 @@ export default function BusMap() {
             </div>
 
             <div className="lines-modal-body">
-              <section className="modal-favorites-block">
-                <header>
-                  <div>
-                    <p className="eyebrow">Atalhos</p>
-                    <h3>Linhas favoritas</h3>
-                  </div>
-                  <small>Escolhe uma linha e depois o sentido.</small>
-                </header>
-                {favoriteLineNumbers.length === 0 ? (
-                  <p className="favorite-empty">Marca linhas com a estrela para aparecerem aqui.</p>
-                ) : (
-                  <div className="favorite-line-grid">
-                    {favoriteLineNumbers.map((lineNumber) => {
-                      const line = linesPayload?.lines.find((entry) => entry.number === lineNumber);
-                      const lineTheme = getLineTheme(lineNumber);
-                      const isSelected = selectedFavoriteLine === lineNumber;
-
-                      return (
-                        <button
-                          key={`modal-favorite-${lineNumber}`}
-                          className={isSelected ? "favorite-line is-active" : "favorite-line"}
-                          onClick={() => selectFavoriteLine(lineNumber)}
-                          style={{ borderColor: isSelected ? lineTheme.color : undefined }}
-                        >
-                          <span style={{ background: line?.color ?? lineTheme.color, color: line?.text_color ?? lineTheme.text }}>
-                            {lineNumber}
-                          </span>
-                          <b>{line?.name ?? "Linha favorita"}</b>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {selectedFavoriteLineData ? (
-                  <div className="favorite-direction-list">
-                    {selectedFavoriteLineData.directions.map((direction) => (
-                      <button
-                        key={`modal-fav-dir-${selectedFavoriteLineData.id}-${direction.direction_id}`}
-                        className={favoriteDirectionId === direction.direction_id ? "is-active" : ""}
-                        onClick={() => {
-                          handleFavoriteDirection(selectedFavoriteLineData, direction);
-                          setLinesOpen(false);
-                        }}
-                      >
-                        <span>{direction.headsign}</span>
-                        <small>{direction.stops.length} paragens</small>
-                      </button>
-                    ))}
-                  </div>
-                ) : null}
-                {favoriteError ? <p className="journey-error">{favoriteError}</p> : null}
-              </section>
 
               {linesLoading ? <p className="lines-empty">A carregar linhas...</p> : null}
               {linesError ? <p className="lines-empty">{linesError}</p> : null}
@@ -4238,67 +4587,189 @@ export default function BusMap() {
               ) : null}
 
               {!linesLoading && !linesError
-                ? filteredTransitLines.map((line) => {
-                    const lineTheme = getLineTheme(line.id);
-                    const activeVehicles = getActiveVehicleCountForLine(line.id);
-                    const isExpanded = expandedLineId === line.id;
+                ? (() => {
+                    const favorites = filteredTransitLines.filter((line) => favoriteLineNumbers.includes(line.number));
+                    const others = filteredTransitLines;
 
                     return (
-                      <article className={`line-card ${isExpanded ? "is-expanded" : ""}`} key={line.id}>
-                        <button className="line-card-header" onClick={() => setExpandedLineId(isExpanded ? null : line.id)}>
-                          <span className="line-number" style={{ background: lineTheme.color, color: lineTheme.text }}>
-                            {line.id}
-                          </span>
-                          <span className="line-card-title">
-                            <strong>{line.name}</strong>
-                            <small>
-                              {line.directions.length} sentidos · {activeVehicles} em circulação
-                            </small>
-                          </span>
-                          <span className="line-card-chevron" aria-hidden="true">
-                            {isExpanded ? "−" : "+"}
-                          </span>
-                        </button>
-                        <button
-                          className={favoriteLineNumbers.includes(line.number) ? "line-favorite-toggle is-favorite" : "line-favorite-toggle"}
-                          onClick={() => toggleFavoriteLine(line.number)}
-                          aria-label={favoriteLineNumbers.includes(line.number) ? `Remover linha ${line.number} dos favoritos` : `Adicionar linha ${line.number} aos favoritos`}
-                          title={favoriteLineNumbers.includes(line.number) ? "Remover favorito" : "Adicionar favorito"}
-                        >
-                          {favoriteLineNumbers.includes(line.number) ? "★" : "☆"}
-                        </button>
-
-                        {isExpanded ? (
-                          <div className="line-directions">
-                            {line.directions.map((direction) => (
-                              <section className="line-direction" key={`${line.id}-${direction.direction_id}`}>
-                                <h3>{direction.headsign}</h3>
-                                <ol>
-                                  {direction.stops.map((stop, index) => (
-                                    <li key={`${direction.direction_id}-${stop.stop_id}-${index}`}>
-                                      <span>{index + 1}</span>
-                                      <button
-                                        onClick={() => {
-                                          mapRef.current?.easeTo({
-                                            center: [stop.longitude, stop.latitude],
-                                            zoom: 15.5,
-                                            duration: 700
-                                          });
-                                          setLinesOpen(false);
-                                        }}
-                                      >
-                                        {stop.stop_name}
-                                      </button>
-                                    </li>
-                                  ))}
-                                </ol>
-                              </section>
-                            ))}
+                      <>
+                        {favorites.length > 0 && (
+                          <div className="favorites-group">
+                            <div style={{
+                              position: "sticky",
+                              top: "-10px",
+                              zIndex: 10,
+                              background: "#0b1118",
+                              fontSize: '0.65rem',
+                              textTransform: 'uppercase',
+                              color: 'rgba(255, 255, 255, 0.5)',
+                              padding: '12px 10px 6px 10px',
+                              margin: '0 -10px',
+                              fontWeight: 'bold'
+                            }}>
+                              Favoritos
+                            </div>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '8px 0', paddingBottom: '16px' }}>
+                              {favorites.map((line) => {
+                                const lineTheme = getLineTheme(line.number);
+                                const isExpanded = expandedLineId === line.id;
+                                return (
+                                  <button
+                                    key={`modal-fav-badge-${line.id}`}
+                                    onClick={() => setExpandedLineId(isExpanded ? null : line.id)}
+                                    style={{
+                                      display: 'grid',
+                                      placeItems: 'center',
+                                      minWidth: '50px',
+                                      minHeight: '30px',
+                                      background: lineTheme.color,
+                                      color: lineTheme.text,
+                                      padding: '0 8px',
+                                      borderRadius: '7px',
+                                      border: 'none',
+                                      fontSize: '0.9rem',
+                                      fontWeight: 900,
+                                      cursor: 'pointer',
+                                      boxShadow: isExpanded ? `0 0 0 2px #0b1118, 0 0 0 4px ${lineTheme.color}` : 'none',
+                                      transition: 'box-shadow 0.15s ease, transform 0.1s ease',
+                                      transform: isExpanded ? 'scale(1.05)' : 'scale(1)'
+                                    }}
+                                  >
+                                    {line.number}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {(() => {
+                              const expandedFav = favorites.find(f => f.id === expandedLineId);
+                              if (!expandedFav) return null;
+                              return (
+                                <article className="line-card is-expanded" style={{ marginTop: 0, marginBottom: '16px' }}>
+                                  <div className="line-directions">
+                                    {expandedFav.directions.map((direction) => (
+                                      <section className="line-direction" key={`${expandedFav.id}-${direction.direction_id}`}>
+                                        <h3>{direction.headsign}</h3>
+                                        <ol>
+                                          {direction.stops.map((stop, index) => (
+                                            <li key={`${direction.direction_id}-${stop.stop_id}-${index}`}>
+                                              <span>{index + 1}</span>
+                                              <button
+                                                onClick={() => {
+                                                  mapRef.current?.easeTo({
+                                                    center: [stop.longitude, stop.latitude],
+                                                    zoom: 15.5,
+                                                    duration: 700
+                                                  });
+                                                  setLinesOpen(false);
+                                                }}
+                                              >
+                                                {stop.stop_name}
+                                              </button>
+                                            </li>
+                                          ))}
+                                        </ol>
+                                      </section>
+                                    ))}
+                                  </div>
+                                </article>
+                              );
+                            })()}
                           </div>
-                        ) : null}
-                      </article>
+                        )}
+
+                        {(() => {
+                          let currentGroup = "";
+                          return others.map((line) => {
+                            const label = getGroupLabel(line.number);
+                            const showHeader = label !== currentGroup;
+                            if (showHeader) {
+                              currentGroup = label;
+                            }
+
+                            const lineTheme = getLineTheme(line.number);
+                            const activeVehicles = getActiveVehicleCountForLine(line.number);
+                            const isExpanded = expandedLineId === line.id;
+
+                            return (
+                              <Fragment key={line.id}>
+                                {showHeader && (
+                                  <div style={{
+                                    position: "sticky",
+                                    top: "-10px",
+                                    zIndex: 10,
+                                    background: "#0b1118",
+                                    fontSize: '0.65rem',
+                                    textTransform: 'uppercase',
+                                    color: 'rgba(255, 255, 255, 0.5)',
+                                    padding: '12px 10px 6px 10px',
+                                    margin: '0 -10px',
+                                    fontWeight: 'bold'
+                                  }}>
+                                    {label}
+                                  </div>
+                                )}
+                                <article className={`line-card ${isExpanded ? "is-expanded" : ""}`}>
+                                  <div className="line-card-summary">
+                                    <button
+                                      className={favoriteLineNumbers.includes(line.number) ? "line-favorite-toggle is-favorite" : "line-favorite-toggle"}
+                                      onClick={() => toggleFavoriteLine(line.number)}
+                                      aria-label={favoriteLineNumbers.includes(line.number) ? `Remover linha ${line.number} dos favoritos` : `Adicionar linha ${line.number} aos favoritos`}
+                                      title={favoriteLineNumbers.includes(line.number) ? "Remover favorito" : "Adicionar favorito"}
+                                    >
+                                      {favoriteLineNumbers.includes(line.number) ? "★" : "☆"}
+                                    </button>
+                                    <button className="line-card-expand" onClick={() => setExpandedLineId(isExpanded ? null : line.id)}>
+                                      <span className="line-badge" style={{ background: lineTheme.color, color: lineTheme.text }}>
+                                        {line.number}
+                                      </span>
+                                      <span className="line-card-title">
+                                        <strong>{line.name}</strong>
+                                        <small>
+                                          {line.directions.length} sentidos · {activeVehicles} em circulação
+                                        </small>
+                                      </span>
+                                      <span className="line-card-chevron" aria-hidden="true">
+                                        {isExpanded ? "−" : "+"}
+                                      </span>
+                                    </button>
+                                  </div>
+
+                                  {isExpanded ? (
+                                    <div className="line-directions">
+                                      {line.directions.map((direction) => (
+                                        <section className="line-direction" key={`${line.id}-${direction.direction_id}`}>
+                                          <h3>{direction.headsign}</h3>
+                                          <ol>
+                                            {direction.stops.map((stop, index) => (
+                                              <li key={`${direction.direction_id}-${stop.stop_id}-${index}`}>
+                                                <span>{index + 1}</span>
+                                                <button
+                                                  onClick={() => {
+                                                    mapRef.current?.easeTo({
+                                                      center: [stop.longitude, stop.latitude],
+                                                      zoom: 15.5,
+                                                      duration: 700
+                                                    });
+                                                    setLinesOpen(false);
+                                                  }}
+                                                >
+                                                  {stop.stop_name}
+                                                </button>
+                                              </li>
+                                            ))}
+                                          </ol>
+                                        </section>
+                                      ))}
+                                    </div>
+                                  ) : null}
+                                </article>
+                              </Fragment>
+                            );
+                          });
+                        })()}
+                      </>
                     );
-                  })
+                  })()
                 : null}
             </div>
           </section>

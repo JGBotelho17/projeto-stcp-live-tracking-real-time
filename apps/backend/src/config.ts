@@ -19,7 +19,7 @@ const schema = z.object({
   GTFS_STATIC_URL: z
     .string()
     .default(
-      "https://opendata.porto.digital/dataset/5275c986-592c-43f5-8f87-aabbd4e4f3a4/resource/415bf8d5-4c18-40b3-9516-9d9187185ef9/download/gtfs_stcp.zip"
+      "https://opendata.porto.digital/dataset/5275c986-592c-43f5-8f87-aabbd4e4f3a4/resource/96c0ba2f-feb1-47c1-8e39-8588d0b5768d/download/gtfs_feed.zip"
     ),
   METRO_GTFS_STATIC_URL: z
     .string()

@@ -11,6 +11,12 @@ type TripRow = {
   shape_id: string;
 };
 
+type RouteRow = {
+  route_id: string;
+  route_short_name: string;
+  route_long_name: string;
+};
+
 type StopTimeRow = {
   trip_id: string;
   stop_id: string;
@@ -49,6 +55,7 @@ type RouteStop = {
 type NextStopIndex = {
   shapesByRouteDirection: Map<string, RouteShapeIndex>;
   stopsByRouteDirection: Map<string, RouteStop[]>;
+  routeIdByShortName: Map<string, string>;
 };
 
 export class GtfsNextStopsService {
@@ -81,7 +88,11 @@ export class GtfsNextStopsService {
     const directionId = vehicle.direction_id;
     if (!directionId) return null;
 
-    const key = routeDirectionKey(vehicle.line_number, directionId);
+    let routeId = vehicle.line_number;
+    const mapped = index.routeIdByShortName.get(routeId.toUpperCase());
+    if (mapped) routeId = mapped;
+
+    const key = routeDirectionKey(routeId, directionId);
     const shape = index.shapesByRouteDirection.get(key);
     const stops = index.stopsByRouteDirection.get(key);
     if (!shape || !stops || stops.length === 0) return null;
@@ -89,11 +100,11 @@ export class GtfsNextStopsService {
     const projection = projectPointToShape([vehicle.longitude, vehicle.latitude], shape);
     if (projection.distanceFromShapeMeters > 140) return null;
 
-    const stopAheadEpsilonMeters = Math.max(2, Math.min(12, (vehicle.speed ?? 0) * 1.5));
+    const stopCatchupMeters = Math.max(15, Math.min(45, (vehicle.speed ?? 0) * 2));
     const nextStop = stops.find(
       (stop) =>
         stop.distanceAlongShapeMeters >
-        projection.distanceAlongShapeMeters + stopAheadEpsilonMeters
+        projection.distanceAlongShapeMeters - stopCatchupMeters
     );
 
     const stop = nextStop ?? stops[0] ?? null;
@@ -102,7 +113,7 @@ export class GtfsNextStopsService {
     const distanceToStopMeters =
       stop.distanceAlongShapeMeters >= projection.distanceAlongShapeMeters
         ? stop.distanceAlongShapeMeters - projection.distanceAlongShapeMeters
-        : shape.totalMeters - projection.distanceAlongShapeMeters + stop.distanceAlongShapeMeters;
+        : 0;
     const speed = Math.max(vehicle.speed ?? 0, MIN_URBAN_SPEED_METERS_PER_SECOND);
 
     return {
@@ -127,9 +138,10 @@ export class GtfsNextStopsService {
     const stopTimesEntry = zip.getEntry("stop_times.txt");
     const stopsEntry = zip.getEntry("stops.txt");
     const shapesEntry = zip.getEntry("shapes.txt");
+    const routesEntry = zip.getEntry("routes.txt");
 
-    if (!tripsEntry || !stopTimesEntry || !stopsEntry || !shapesEntry) {
-      throw new Error("GTFS static feed must contain trips, stop_times, stops and shapes");
+    if (!tripsEntry || !stopTimesEntry || !stopsEntry || !shapesEntry || !routesEntry) {
+      throw new Error("GTFS static feed must contain trips, stop_times, stops, shapes and routes");
     }
 
     const trips = parseCsv<TripRow>(tripsEntry.getData().toString("utf8"));
@@ -156,9 +168,18 @@ export class GtfsNextStopsService {
       shapesByRouteDirection
     );
 
+    const routes = parseCsv<RouteRow>(routesEntry.getData().toString("utf8"));
+    const routeIdByShortName = new Map<string, string>();
+    for (const r of routes) {
+      if (r.route_short_name) {
+        routeIdByShortName.set(r.route_short_name.toUpperCase(), r.route_id);
+      }
+    }
+
     this.index = {
       shapesByRouteDirection,
-      stopsByRouteDirection
+      stopsByRouteDirection,
+      routeIdByShortName
     };
     this.loadedAt = Date.now();
     return this.index;
@@ -340,8 +361,7 @@ function buildRouteStops(
           distanceAlongShapeMeters: projection.distanceAlongShapeMeters
         };
       })
-      .filter((stop): stop is RouteStop => stop !== null)
-      .sort((a, b) => a.distanceAlongShapeMeters - b.distanceAlongShapeMeters);
+      .filter((stop): stop is RouteStop => stop !== null);
 
     stopsByRouteDirection.set(routeDirection, routeStops);
   }
