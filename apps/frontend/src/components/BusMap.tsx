@@ -4041,7 +4041,7 @@ export default function BusMap() {
         </div>
       ) : null}
       {mode === "bus" ? (
-        <section className={linesOpen || activeMobilePanel === "journey" || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
+        <section className={linesOpen || activeMobilePanel === "journey" || activeMobilePanel === "stops" || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
             <span className="search-inline-icon" aria-hidden="true" />
             <input
