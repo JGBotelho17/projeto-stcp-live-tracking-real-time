@@ -18,6 +18,8 @@ import type {
 } from "../types";
 
 const PORTO_CENTER: [number, number] = [-8.6291, 41.1579];
+const DARK_MAP_STYLE_URL = "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json";
+const LIGHT_MAP_STYLE_URL = "https://basemaps.cartocdn.com/gl/positron-gl-style/style.json";
 const UPDATE_INTERVAL_MS = 12_000;
 const DEFAULT_GPS_INTERVAL_MS = 60_000;
 const SNAPSHOT_BOOTSTRAP_MS = 1;
@@ -33,6 +35,7 @@ const ALL_VEHICLES_RENDER_INTERVAL_MS = 33;
 const WALKING_SPEED_METERS_PER_MINUTE = 75;
 const USER_LOCATION_ORIGIN_LABEL = "A minha localização";
 const FAVORITE_LINES_STORAGE_KEY = "stcp-live:favourite-lines";
+const LIGHT_MODE_STORAGE_KEY = "invictago:light-mode";
 const STOPS_SOURCE_ID = "stcp-stops";
 const STOPS_HIT_LAYER_ID = "stcp-stop-hit";
 const BUS_SOURCE_ID = "stcp-buses";
@@ -252,9 +255,24 @@ function loadFavoriteLineNumbers() {
   }
 }
 
+function loadLightModePreference() {
+  if (typeof window === "undefined") return false;
+  window.localStorage.removeItem(LIGHT_MODE_STORAGE_KEY);
+  return window.sessionStorage.getItem(LIGHT_MODE_STORAGE_KEY) === "true";
+}
+
 function toDatetimeLocalValue(date: Date) {
   const offsetMs = date.getTimezoneOffset() * 60_000;
   return new Date(date.getTime() - offsetMs).toISOString().slice(0, 16);
+}
+
+function toTimeInputValue(datetimeLocalValue: string) {
+  return datetimeLocalValue.slice(11, 16);
+}
+
+function mergeTimeIntoDatetimeLocalValue(datetimeLocalValue: string, timeValue: string) {
+  const dateValue = datetimeLocalValue.slice(0, 10) || toDatetimeLocalValue(new Date()).slice(0, 10);
+  return `${dateValue}T${timeValue}`;
 }
 
 function normalizeLineReference(lineNumber: string) {
@@ -363,12 +381,12 @@ export default function BusMap() {
   const locationRequestedRef = useRef(false);
   const frameRef = useRef<number | null>(null);
   const lastRenderRef = useRef(0);
-
   const [selectedLineFilters, setSelectedLineFilters] = useState<string[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [activeMobilePanel, setActiveMobilePanel] = useState<MobilePanel>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [isLightMode, setIsLightMode] = useState(() => loadLightModePreference());
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mode, setMode] = useState<TransitMode>("bus");
   const [connected, setConnected] = useState(socket.connected);
@@ -490,6 +508,7 @@ export default function BusMap() {
   const [journeyPlan, setJourneyPlan] = useState<JourneyPlan | null>(null);
   const [journeyOptions, setJourneyOptions] = useState<JourneyPlan[]>([]);
   const [journeyDetailsOpen, setJourneyDetailsOpen] = useState(true);
+  const [isJourneyRouteActive, setIsJourneyRouteActive] = useState(false);
   const [infoDialog, setInfoDialog] = useState<"about" | "donate" | null>(null);
   const [dataVersion, setDataVersion] = useState(0);
 
@@ -650,12 +669,19 @@ export default function BusMap() {
     setSelectedLineFilters([lineNumber]);
   }
 
+  function toggleLightMode() {
+    const nextValue = !isLightMode;
+    window.sessionStorage.setItem(LIGHT_MODE_STORAGE_KEY, String(nextValue));
+    setIsLightMode(nextValue);
+    window.location.reload();
+  }
+
   useEffect(() => {
     if (!mapContainerRef.current || mapRef.current) return;
 
     const map = new maplibregl.Map({
       container: mapContainerRef.current,
-      style: "https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json",
+      style: isLightMode ? LIGHT_MAP_STYLE_URL : DARK_MAP_STYLE_URL,
       center: PORTO_CENTER,
       zoom: 12.5,
       pitch: 0,
@@ -789,7 +815,7 @@ export default function BusMap() {
       if (!line.color) continue;
       const iconId = `${BUS_ICON_PREFIX}-${line.number}`;
       if (!map.hasImage(iconId)) {
-        map.addImage(iconId, createBusIconImageData(line.color), { pixelRatio: 2 });
+        map.addImage(iconId, createBusIconImageData(line.color, isLightMode), { pixelRatio: 2 });
       }
     }
   }, [linesPayload]);
@@ -1446,11 +1472,15 @@ export default function BusMap() {
       setJourneyPlan(plan);
       setJourneyDetailsOpen(true);
       setMode("bus");
+      setIsJourneyExpanded(false);
+      setActiveMobilePanel(null);
+      setIsJourneyRouteActive(false);
       focusJourneyPlan(plan);
     } catch (error) {
       setJourneyError(error instanceof Error ? error.message : "Não consegui calcular esse caminho.");
       setJourneyPlan(null);
       setJourneyOptions([]);
+      setIsJourneyRouteActive(false);
     } finally {
       setJourneyLoading(false);
     }
@@ -1464,6 +1494,7 @@ export default function BusMap() {
     setJourneyPlan(null);
     setJourneyOptions([]);
     setJourneyDetailsOpen(true);
+    setIsJourneyRouteActive(false);
     renderJourneyPlan(null);
   }
 
@@ -2064,6 +2095,40 @@ export default function BusMap() {
     });
   }
 
+  function focusJourneyStart(plan: JourneyPlan) {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const firstSegment = plan.segments[0];
+    const startCoordinates =
+      firstSegment && firstSegment.coordinates.length > 1
+        ? [plan.originCoordinate, ...firstSegment.coordinates]
+        : [plan.originCoordinate];
+
+    const uniqueCoordinates = compactCoordinates(startCoordinates);
+    if (uniqueCoordinates.length <= 1 || (firstSegment?.distanceMeters ?? 0) < 45) {
+      map.easeTo({
+        center: plan.originCoordinate,
+        zoom: 16.8,
+        duration: 700
+      });
+      return;
+    }
+
+    const bounds = new maplibregl.LngLatBounds();
+    uniqueCoordinates.forEach((coordinate) => bounds.extend(coordinate));
+    map.fitBounds(bounds, {
+      padding: {
+        top: 150,
+        right: 70,
+        bottom: 170,
+        left: 70
+      },
+      maxZoom: 16.8,
+      duration: 700
+    });
+  }
+
   function formatJourneyMinutes(minutes: number) {
     if (!Number.isFinite(minutes)) return "--";
     if (minutes < 1) return "<1 min";
@@ -2233,8 +2298,8 @@ export default function BusMap() {
       source: STOPS_SOURCE_ID,
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 2, 16, 5],
-        "circle-color": "#f7d154",
-        "circle-opacity": 0.18
+        "circle-color": isLightMode ? "#6f7b8a" : "#f7d154",
+        "circle-opacity": isLightMode ? 0.12 : 0.18
       }
     });
 
@@ -2244,9 +2309,9 @@ export default function BusMap() {
       source: STOPS_SOURCE_ID,
       paint: {
         "circle-radius": ["interpolate", ["linear"], ["zoom"], 11, 1.2, 16, 2.8],
-        "circle-color": "#f6f8fb",
-        "circle-opacity": 0.82,
-        "circle-stroke-color": "#111820",
+        "circle-color": isLightMode ? "#6f7b8a" : "#f6f8fb",
+        "circle-opacity": isLightMode ? 0.62 : 0.82,
+        "circle-stroke-color": isLightMode ? "#ffffff" : "#111820",
         "circle-stroke-width": 1
       }
     });
@@ -2264,8 +2329,8 @@ export default function BusMap() {
         "text-anchor": "top"
       },
       paint: {
-        "text-color": "#d8e0e8",
-        "text-halo-color": "#07090c",
+        "text-color": isLightMode ? "#24313d" : "#d8e0e8",
+        "text-halo-color": isLightMode ? "#ffffff" : "#07090c",
         "text-halo-width": 1.2,
         "text-opacity": 0.78
       }
@@ -2350,7 +2415,7 @@ export default function BusMap() {
           "line-join": "round"
         },
         paint: {
-          "line-color": "#05080c",
+          "line-color": isLightMode ? "#ffffff" : "#05080c",
           "line-width": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 12],
           "line-opacity": 0.86
         }
@@ -2402,7 +2467,7 @@ export default function BusMap() {
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 6, 16, 10],
           "circle-color": ["coalesce", ["get", "color"], "#7de0d4"],
-          "circle-stroke-color": "#05080c",
+          "circle-stroke-color": isLightMode ? "#ffffff" : "#05080c",
           "circle-stroke-width": 3
         }
       });
@@ -2422,8 +2487,8 @@ export default function BusMap() {
           "text-anchor": "top"
         },
         paint: {
-          "text-color": "#f6f8fb",
-          "text-halo-color": "#05080c",
+          "text-color": isLightMode ? "#172230" : "#f6f8fb",
+          "text-halo-color": isLightMode ? "#ffffff" : "#05080c",
           "text-halo-width": 1.6
         }
       });
@@ -2477,7 +2542,7 @@ export default function BusMap() {
           "line-join": "round"
         },
         paint: {
-          "line-color": "#06100f",
+          "line-color": isLightMode ? "#ffffff" : "#06100f",
           "line-width": ["interpolate", ["linear"], ["zoom"], 10, 5, 15, 9],
           "line-opacity": 0.9
         }
@@ -2508,7 +2573,7 @@ export default function BusMap() {
         source: METRO_STATIONS_SOURCE_ID,
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 15, 8],
-          "circle-color": "#06100f",
+          "circle-color": isLightMode ? "#ffffff" : "#06100f",
           "circle-opacity": 0.88
         }
       });
@@ -2521,8 +2586,8 @@ export default function BusMap() {
         source: METRO_STATIONS_SOURCE_ID,
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2.4, 15, 4.8],
-          "circle-color": "#f6f8fb",
-          "circle-stroke-color": "#111820",
+          "circle-color": isLightMode ? "#ffffff" : "#f6f8fb",
+          "circle-stroke-color": isLightMode ? "#516173" : "#111820",
           "circle-stroke-width": 1.4
         }
       });
@@ -2542,8 +2607,8 @@ export default function BusMap() {
           "text-anchor": "top"
         },
         paint: {
-          "text-color": "#f6f8fb",
-          "text-halo-color": "#07090c",
+          "text-color": isLightMode ? "#24313d" : "#f6f8fb",
+          "text-halo-color": isLightMode ? "#ffffff" : "#07090c",
           "text-halo-width": 1.4
         }
       });
@@ -2681,7 +2746,15 @@ export default function BusMap() {
     for (const family of BUS_LINE_FAMILIES) {
       const iconId = `${BUS_ICON_PREFIX}-${family.key}`;
       if (!map.hasImage(iconId)) {
-        map.addImage(iconId, createBusIconImageData(family.color), { pixelRatio: 2 });
+        map.addImage(iconId, createBusIconImageData(family.color, isLightMode), { pixelRatio: 2 });
+      }
+    }
+
+    for (const line of linesPayloadRef.current?.lines ?? []) {
+      if (!line.color) continue;
+      const iconId = `${BUS_ICON_PREFIX}-${line.number}`;
+      if (!map.hasImage(iconId)) {
+        map.addImage(iconId, createBusIconImageData(line.color, isLightMode), { pixelRatio: 2 });
       }
     }
 
@@ -2823,7 +2896,7 @@ export default function BusMap() {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 4, 16, 7],
           "circle-color": ["coalesce", ["get", "color"], "#7de0d4"],
           "circle-opacity": 0.3,
-          "circle-stroke-color": "#f6f8fb",
+          "circle-stroke-color": isLightMode ? "#5e6a78" : "#f6f8fb",
           "circle-stroke-width": 0.6
         }
       });
@@ -2837,7 +2910,7 @@ export default function BusMap() {
         paint: {
           "circle-radius": ["interpolate", ["linear"], ["zoom"], 10, 2, 16, 3.5],
           "circle-color": ["coalesce", ["get", "color"], "#7de0d4"],
-          "circle-stroke-color": "#05080c",
+          "circle-stroke-color": isLightMode ? "#5e6a78" : "#05080c",
           "circle-stroke-width": 1.2
         }
       });
@@ -2913,7 +2986,7 @@ export default function BusMap() {
     }
   }
 
-  function createBusIconImageData(color: string) {
+  function createBusIconImageData(color: string, lightMode = false) {
     const canvas = document.createElement("canvas");
     canvas.width = 64;
     canvas.height = 64;
@@ -2934,7 +3007,7 @@ export default function BusMap() {
     context.globalAlpha = 1;
 
     context.fillStyle = color;
-    context.strokeStyle = "rgba(255,255,255,0.82)";
+    context.strokeStyle = lightMode ? "#1f2933" : "rgba(255,255,255,0.82)";
     context.lineWidth = 3;
     roundedRect(context, -13, -16, 26, 35, 7);
     context.fill();
@@ -3927,14 +4000,16 @@ export default function BusMap() {
   }, [searchQuery, allUniqueStops]);
 
   return (
-    <div className="responsive-app-frame" aria-label="STCP Live Tracking">
+    <div className={isLightMode ? "responsive-app-frame is-light-mode" : "responsive-app-frame"} aria-label="InvictaGo">
     <main className="shell">
       <div ref={mapContainerRef} className="map" />
 
       <div className="top-stack">
-        <section className="topbar" aria-label="Controlos do mapa">
+        <section className={activeMobilePanel === "journey" ? "topbar is-hidden-on-mobile" : "topbar"} aria-label="Controlos do mapa">
           <div>
-            <p className="eyebrow">STCP Live</p>
+            <div className="app-brand" aria-label="InvictaGo">
+              <img className="app-brand-full" src="/brand-logos/invictago-full.png" alt="InvictaGo" />
+            </div>
             <h1>{mode === "bus" ? "Radar de autocarros" : "Metro do Porto"}</h1>
             <div className="topbar-actions">
               <div className="mode-tabs" aria-label="Modo de transporte">
@@ -3997,9 +4072,10 @@ export default function BusMap() {
               <label>
                 <span>Hora</span>
                 <input
-                  type="datetime-local"
-                  value={journeyDateTime}
-                  onChange={(event) => setJourneyDateTime(event.target.value)}
+                  className="journey-time-input"
+                  type="time"
+                  value={toTimeInputValue(journeyDateTime)}
+                  onChange={(event) => setJourneyDateTime((current) => mergeTimeIntoDatetimeLocalValue(current, event.target.value))}
                 />
               </label>
             </div>
@@ -4071,8 +4147,9 @@ export default function BusMap() {
               ) : null}
             </label>
             <div className="journey-actions">
-              <button type="submit" className="icon-action" disabled={journeyLoading} aria-label="Calcular percurso" title="Calcular percurso">
+              <button type="submit" className="icon-action journey-submit-button" disabled={journeyLoading} aria-label="Procurar itinerários" title="Procurar itinerários">
                 {journeyLoading ? <span className="button-loading-dot" aria-hidden="true" /> : <SendIcon />}
+                <span className="journey-submit-label">Procurar itinerários</span>
               </button>
               <button type="button" className="secondary icon-action" onClick={clearJourneyPlanner} aria-label="Limpar percurso" title="Limpar percurso">
                 <TrashIcon />
@@ -4169,7 +4246,24 @@ export default function BusMap() {
         ) : null}
       </div>
 
-      {mode === "bus" ? (
+      {mode === "bus" && journeyPlan && isJourneyRouteActive && !activeMobilePanel && !settingsOpen && !linesOpen && !infoDialog ? (
+        <section className="floating-search active-journey-strip" aria-label="Trajeto selecionado">
+          <div>
+            <span>Trajeto selecionado</span>
+            <strong>{formatJourneyMinutes(journeyPlan.totalMin)}</strong>
+            <small>
+              {journeyPlan.mode === "stcp"
+                ? formatJourneySummary(journeyPlan)
+                : "Caminho direto estimado no mapa"}
+            </small>
+          </div>
+          <button type="button" onClick={clearJourneyPlanner} aria-label="Fechar trajeto" title="Fechar trajeto">
+            ×
+          </button>
+        </section>
+      ) : null}
+
+      {mode === "bus" && !isJourneyRouteActive ? (
         <section className={activeMobilePanel === "journey" || activeMobilePanel === "stops" || settingsOpen || linesOpen || infoDialog ? "floating-search is-hidden-for-panel" : "floating-search"} aria-label="Pesquisar linha ou paragem">
           <label className="search search-with-icon">
             <span className="search-inline-icon" aria-hidden="true">
@@ -4307,6 +4401,60 @@ export default function BusMap() {
               </div>
             </div>
           )}
+        </section>
+      ) : null}
+
+      {mode === "bus" && journeyOptions.length > 0 && !isJourneyRouteActive && activeMobilePanel !== "journey" ? (
+        <section className="mobile-journey-results" aria-label="Itinerários encontrados">
+          {journeyOptions.slice(0, 2).map((option) => (
+            <article
+              key={`${option.optionLabel}-${option.mode}-${option.legs.map((leg) => `${leg.lineNumber}-${leg.fromStopName}-${leg.toStopName}`).join("-")}`}
+              className={option === journeyPlan ? "is-active" : ""}
+              role="button"
+              tabIndex={0}
+              onClick={() => {
+                setJourneyPlan(option);
+                setJourneyDetailsOpen(true);
+                renderJourneyPlan(option);
+                focusJourneyPlan(option);
+              }}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                setJourneyPlan(option);
+                setJourneyDetailsOpen(true);
+                renderJourneyPlan(option);
+                focusJourneyPlan(option);
+              }}
+            >
+              <span>{option.optionLabel}</span>
+              <strong>{formatJourneyMinutes(option.totalMin)}</strong>
+              <small>{option.transfers === 0 ? "Sem trocas" : `${option.transfers} troca${option.transfers > 1 ? "s" : ""}`}</small>
+              <em>{formatJourneyMinutes(option.walkingMin)} a pé</em>
+              <button
+                type="button"
+                className="journey-card-cta"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setJourneyPlan(option);
+                  setJourneyDetailsOpen(true);
+                  setIsJourneyRouteActive(true);
+                  renderJourneyPlan(option);
+                  focusJourneyStart(option);
+                }}
+              >
+                Ir
+              </button>
+            </article>
+          ))}
+          {journeyOptions.length === 1 ? (
+            <article className="is-empty" aria-label="Sem outros itinerários">
+              <span>Sem alternativa</span>
+              <strong>--</strong>
+              <small>Não há outras opções úteis</small>
+              <em>Tenta outro destino</em>
+            </article>
+          ) : null}
         </section>
       ) : null}
 
@@ -4532,12 +4680,20 @@ export default function BusMap() {
               Sobre
             </span>
           </button>
-          <button type="button" disabled title="Dispon\u00edvel futuramente">
+          <button
+            type="button"
+            className={isLightMode ? "theme-toggle-option is-active" : "theme-toggle-option"}
+            aria-pressed={isLightMode}
+            onClick={toggleLightMode}
+            title={isLightMode ? "Mudar para modo escuro" : "Mudar para modo claro"}
+          >
             <span className="settings-menu-label">
               <span className="settings-menu-icon settings-menu-icon-theme" aria-hidden="true" />
               Modo claro
             </span>
-            <small>Brevemente</small>
+            <span className="theme-toggle-switch" aria-hidden="true">
+              <span />
+            </span>
           </button>
           <button
             type="button"
@@ -4595,12 +4751,12 @@ export default function BusMap() {
                   melhorias da interface.
                 </p>
                 <div className="donate-options" aria-label="Opções de donativo">
-                  <button type="button" className="donate-option paypal-option">
-                    <span>PayPal</span>
-                  </button>
-                  <button type="button" className="donate-option revolut-option">
-                    <span>Revolut</span>
-                  </button>
+                  <a className="donate-option paypal-option" href="https://paypal.me/joaobotelho17" target="_blank" rel="noreferrer">
+                    <img src="/brand-logos/paypal-logo.png" alt="PayPal" />
+                  </a>
+                  <a className="donate-option revolut-option" href="https://revolut.me/joop6sws" target="_blank" rel="noreferrer">
+                    <img src="/brand-logos/revolut-logo.svg" alt="Revolut" />
+                  </a>
                 </div>
               </div>
             )}
@@ -4767,18 +4923,7 @@ export default function BusMap() {
                       <>
                         {favorites.length > 0 && (
                           <div className="favorites-group">
-                            <div style={{
-                              position: "sticky",
-                              top: "-10px",
-                              zIndex: 10,
-                              background: "#0b1118",
-                              fontSize: '0.65rem',
-                              textTransform: 'uppercase',
-                              color: 'rgba(255, 255, 255, 0.5)',
-                              padding: '12px 10px 6px 10px',
-                              margin: '0 -10px',
-                              fontWeight: 'bold'
-                            }}>
+                            <div className="lines-group-heading">
                               Favoritos
                             </div>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', padding: '8px 0', paddingBottom: '16px' }}>
@@ -4865,18 +5010,7 @@ export default function BusMap() {
                             return (
                               <Fragment key={line.id}>
                                 {showHeader && (
-                                  <div style={{
-                                    position: "sticky",
-                                    top: "-10px",
-                                    zIndex: 10,
-                                    background: "#0b1118",
-                                    fontSize: '0.65rem',
-                                    textTransform: 'uppercase',
-                                    color: 'rgba(255, 255, 255, 0.5)',
-                                    padding: '12px 10px 6px 10px',
-                                    margin: '0 -10px',
-                                    fontWeight: 'bold'
-                                  }}>
+                                  <div className="lines-group-heading">
                                     {label}
                                   </div>
                                 )}

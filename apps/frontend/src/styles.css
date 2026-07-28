@@ -18,16 +18,21 @@ body,
   width: 100%;
   height: 100%;
   margin: 0;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 button,
 input {
   font: inherit;
+  touch-action: manipulation;
 }
 
 .responsive-app-frame {
   width: 100%;
   height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 .topbar-actions {
@@ -156,6 +161,43 @@ input {
 
 .metro-wordmark {
   width: 34px;
+}
+
+.app-brand {
+  display: inline-flex;
+  max-width: 100%;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  margin-bottom: 6px;
+  filter: drop-shadow(0 6px 14px rgb(0 0 0 / 30%));
+}
+
+.app-brand-symbol,
+.app-brand-text,
+.app-brand-full {
+  display: block;
+  flex: 0 0 auto;
+  object-fit: contain;
+}
+
+.app-brand-symbol {
+  width: 48px;
+  height: 48px;
+}
+
+.app-brand-text {
+  width: 142px;
+  height: 30px;
+}
+
+.app-brand-full {
+  width: 128px;
+  height: 86px;
+  border-radius: 10px;
+  transform: scale(1.2);
+  transform-origin: center;
 }
 
 .eyebrow {
@@ -958,7 +1000,7 @@ h2 {
 .journey-time-row {
   grid-column: 1 / -1;
   display: grid;
-  grid-template-columns: 120px 1fr;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 8px;
 }
 
@@ -983,6 +1025,10 @@ h2 {
   color: #f6f8fb;
   background: #111820;
   outline: none;
+}
+
+.journey-time-input {
+  appearance: none;
 }
 
 .journey-form input:focus,
@@ -1024,6 +1070,18 @@ h2 {
   color: #f6f8fb;
   border-color: rgb(255 255 255 / 14%);
   background: #111820;
+}
+
+.journey-submit-button {
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 8px;
+}
+
+.journey-submit-label {
+  display: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .journey-actions button:disabled {
@@ -1196,6 +1254,18 @@ h2 {
   }
 }
 
+@keyframes routePanelUnfold {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.96);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
 .journey-result p {
   margin: 0;
   color: #d8e0e8;
@@ -1213,6 +1283,453 @@ h2 {
   padding-left: 18px;
   color: #aeb8c4;
   font-size: 0.82rem;
+}
+
+.mobile-journey-results {
+  display: none;
+}
+
+.active-journey-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 11px;
+  border: 1px solid rgb(125 224 212 / 24%);
+  border-radius: 999px;
+  color: #f6f8fb;
+  background: rgb(8 12 17 / 92%);
+  box-shadow: 0 18px 48px rgb(0 0 0 / 34%);
+  backdrop-filter: blur(18px);
+}
+
+.active-journey-strip > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.active-journey-strip span {
+  color: #9ee8df;
+  font-size: 0.62rem;
+  font-weight: 900;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.active-journey-strip strong {
+  color: #f7d154;
+  font-size: 1.02rem;
+  line-height: 1;
+}
+
+.active-journey-strip small {
+  overflow: hidden;
+  color: #c5ced8;
+  font-size: 0.72rem;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.active-journey-strip button {
+  display: grid;
+  flex: 0 0 34px;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: 50%;
+  color: #f6f8fb;
+  background: #111820;
+  cursor: pointer;
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.responsive-app-frame.is-light-mode {
+  color: #101923;
+  background: #edf4f7;
+}
+
+.responsive-app-frame.is-light-mode .shell {
+  background: #edf4f7;
+}
+
+.responsive-app-frame.is-light-mode .topbar,
+.responsive-app-frame.is-light-mode .journey-card,
+.responsive-app-frame.is-light-mode .line-rail,
+.responsive-app-frame.is-light-mode .statusbar,
+.responsive-app-frame.is-light-mode .mobile-nav-pill,
+.responsive-app-frame.is-light-mode .mobile-settings-popover,
+.responsive-app-frame.is-light-mode .active-journey-strip,
+.responsive-app-frame.is-light-mode .mobile-journey-results article,
+.responsive-app-frame.is-light-mode .lines-modal,
+.responsive-app-frame.is-light-mode .favorites-modal,
+.responsive-app-frame.is-light-mode .info-modal {
+  border-color: rgb(10 26 40 / 12%);
+  color: #101923;
+  background: rgb(255 255 255 / 91%);
+  box-shadow: 0 18px 48px rgb(18 42 66 / 18%);
+}
+
+.responsive-app-frame.is-light-mode .topbar,
+.responsive-app-frame.is-light-mode .journey-card,
+.responsive-app-frame.is-light-mode .line-rail,
+.responsive-app-frame.is-light-mode .mobile-nav-pill,
+.responsive-app-frame.is-light-mode .mobile-settings-popover,
+.responsive-app-frame.is-light-mode .floating-search,
+.responsive-app-frame.is-light-mode .active-journey-strip {
+  backdrop-filter: blur(18px);
+}
+
+.responsive-app-frame.is-light-mode h1,
+.responsive-app-frame.is-light-mode h2,
+.responsive-app-frame.is-light-mode h3,
+.responsive-app-frame.is-light-mode .line-card-title strong,
+.responsive-app-frame.is-light-mode .journey-result strong,
+.responsive-app-frame.is-light-mode .mobile-journey-results strong,
+.responsive-app-frame.is-light-mode .stop-overview-card h3,
+.responsive-app-frame.is-light-mode .stop-eta-card h3 {
+  color: #101923;
+}
+
+.responsive-app-frame.is-light-mode .eyebrow,
+.responsive-app-frame.is-light-mode .active-journey-strip span,
+.responsive-app-frame.is-light-mode .journey-result b,
+.responsive-app-frame.is-light-mode .vehicle-popover-body b {
+  color: #007f88;
+}
+
+.responsive-app-frame.is-light-mode .search,
+.responsive-app-frame.is-light-mode .search input,
+.responsive-app-frame.is-light-mode .journey-form input,
+.responsive-app-frame.is-light-mode .journey-form select,
+.responsive-app-frame.is-light-mode .line-search input {
+  border-color: rgb(10 26 40 / 13%);
+  color: #101923;
+  background: rgb(255 255 255 / 95%);
+}
+
+.responsive-app-frame.is-light-mode .search input,
+.responsive-app-frame.is-light-mode .journey-form input,
+.responsive-app-frame.is-light-mode .journey-form select,
+.responsive-app-frame.is-light-mode .line-search input {
+  color: #101923;
+}
+
+.responsive-app-frame.is-light-mode .search input::placeholder,
+.responsive-app-frame.is-light-mode .journey-form input::placeholder,
+.responsive-app-frame.is-light-mode .line-search input::placeholder {
+  color: #647488;
+}
+
+.responsive-app-frame.is-light-mode .search-clear {
+  color: rgb(23 34 48 / 48%);
+}
+
+.responsive-app-frame.is-light-mode .search-clear:hover {
+  color: #007f88;
+}
+
+.responsive-app-frame.is-light-mode .search-dropdown,
+.responsive-app-frame.is-light-mode .journey-suggestions {
+  border-color: rgb(10 26 40 / 13%) !important;
+  color: #101923 !important;
+  background: rgb(255 255 255 / 97%) !important;
+  box-shadow: 0 22px 52px rgb(18 42 66 / 18%) !important;
+}
+
+.responsive-app-frame.is-light-mode .search-dropdown h4,
+.responsive-app-frame.is-light-mode .search-dropdown p,
+.responsive-app-frame.is-light-mode .search-dropdown button,
+.responsive-app-frame.is-light-mode .journey-suggestions button {
+  color: #101923 !important;
+}
+
+.responsive-app-frame.is-light-mode .search-dropdown button:hover,
+.responsive-app-frame.is-light-mode .journey-suggestions button:hover {
+  background: rgb(0 127 136 / 9%) !important;
+}
+
+.responsive-app-frame.is-light-mode .mode-tabs button,
+.responsive-app-frame.is-light-mode .topbar-refresh-button,
+.responsive-app-frame.is-light-mode .journey-actions button.secondary,
+.responsive-app-frame.is-light-mode .details-toggle,
+.responsive-app-frame.is-light-mode .active-journey-strip button,
+.responsive-app-frame.is-light-mode .mobile-settings-popover button {
+  border-color: rgb(10 26 40 / 12%);
+  color: #172230;
+  background: #eef4f7;
+}
+
+.responsive-app-frame.is-light-mode .mode-tabs button.is-active,
+.responsive-app-frame.is-light-mode .mobile-nav-pill button.is-active,
+.responsive-app-frame.is-light-mode .mobile-settings-popover button.is-active {
+  color: #042321;
+  background: #8fe5dc;
+  box-shadow: inset 0 0 0 1px rgb(0 127 136 / 18%), 0 10px 22px rgb(0 127 136 / 14%);
+}
+
+.responsive-app-frame.is-light-mode .mobile-nav-pill button {
+  color: #536274;
+}
+
+.responsive-app-frame.is-light-mode .journey-options button,
+.responsive-app-frame.is-light-mode .journey-result,
+.responsive-app-frame.is-light-mode .stop-next-vehicle,
+.responsive-app-frame.is-light-mode .line-card,
+.responsive-app-frame.is-light-mode .line-direction,
+.responsive-app-frame.is-light-mode .favorite-line-option,
+.responsive-app-frame.is-light-mode .favorite-result-card {
+  border-color: rgb(10 26 40 / 11%);
+  color: #172230;
+  background: rgb(255 255 255 / 92%);
+}
+
+.responsive-app-frame.is-light-mode .mobile-journey-results article.is-active,
+.responsive-app-frame.is-light-mode .journey-options button.is-active {
+  border-color: rgb(0 127 136 / 38%);
+  background: rgb(220 249 245 / 94%);
+  box-shadow: 0 14px 34px rgb(18 42 66 / 16%);
+}
+
+.responsive-app-frame.is-light-mode .journey-options strong,
+.responsive-app-frame.is-light-mode .mobile-journey-results strong,
+.responsive-app-frame.is-light-mode .active-journey-strip strong,
+.responsive-app-frame.is-light-mode .popup-eta,
+.responsive-app-frame.is-light-mode .stop-eta-card strong,
+.responsive-app-frame.is-light-mode .stop-overview-card strong {
+  color: #a66c00;
+}
+
+.responsive-app-frame.is-light-mode .journey-options span,
+.responsive-app-frame.is-light-mode .journey-options small,
+.responsive-app-frame.is-light-mode .journey-result span,
+.responsive-app-frame.is-light-mode .journey-result p,
+.responsive-app-frame.is-light-mode .journey-result ol,
+.responsive-app-frame.is-light-mode .mobile-journey-results small,
+.responsive-app-frame.is-light-mode .mobile-journey-results em,
+.responsive-app-frame.is-light-mode .active-journey-strip small,
+.responsive-app-frame.is-light-mode .journey-location,
+.responsive-app-frame.is-light-mode .popup-meta,
+.responsive-app-frame.is-light-mode .popup-vehicle,
+.responsive-app-frame.is-light-mode .stop-eta-card span,
+.responsive-app-frame.is-light-mode .stop-eta-card small,
+.responsive-app-frame.is-light-mode .stop-overview-card small,
+.responsive-app-frame.is-light-mode .stop-count,
+.responsive-app-frame.is-light-mode .mobile-settings-popover small {
+  color: #536274;
+}
+
+.responsive-app-frame.is-light-mode .vehicle-map-popup .maplibregl-popup-content,
+.responsive-app-frame.is-light-mode .stop-eta-popup .maplibregl-popup-content {
+  border-color: rgb(10 26 40 / 12%);
+  color: #172230;
+  background: #ffffff;
+  box-shadow: 0 16px 34px rgb(18 42 66 / 18%);
+}
+
+.responsive-app-frame.is-light-mode .vehicle-map-popup .maplibregl-popup-tip,
+.responsive-app-frame.is-light-mode .stop-eta-popup .maplibregl-popup-tip {
+  border-top-color: #ffffff;
+}
+
+.responsive-app-frame.is-light-mode .vehicle-popover-body b {
+  color: #007f88;
+}
+
+.responsive-app-frame.is-light-mode .maplibregl-popup-close-button {
+  color: #172230;
+}
+
+.responsive-app-frame.is-light-mode .notice-bar {
+  border-color: rgb(181 124 0 / 22%);
+  color: #7a5300;
+  background: rgb(255 248 220 / 92%);
+}
+
+.responsive-app-frame.is-light-mode .lines-modal,
+.responsive-app-frame.is-light-mode .favorites-modal,
+.responsive-app-frame.is-light-mode .line-rail {
+  border-color: rgb(10 26 40 / 12%);
+  color: #101923;
+  background: rgb(255 255 255 / 94%);
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-header {
+  border-bottom-color: rgb(10 26 40 / 10%);
+  color: #101923;
+  background: rgb(247 251 252 / 96%);
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-header .eyebrow,
+.responsive-app-frame.is-light-mode .lines-search > span,
+.responsive-app-frame.is-light-mode .line-card-expand:hover,
+.responsive-app-frame.is-light-mode .line-card-chevron,
+.responsive-app-frame.is-light-mode .line-direction li > span {
+  color: #007f88;
+}
+
+.responsive-app-frame.is-light-mode .lines-search {
+  border-bottom-color: rgb(10 26 40 / 10%);
+  background: rgb(247 251 252 / 94%);
+}
+
+.responsive-app-frame.is-light-mode .lines-search input {
+  border-color: rgb(10 26 40 / 13%);
+  color: #101923;
+  background: rgb(255 255 255 / 95%);
+}
+
+.responsive-app-frame.is-light-mode .lines-search input::placeholder {
+  color: #647488;
+}
+
+.responsive-app-frame.is-light-mode .lines-search input:focus {
+  border-color: #00a6a6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgb(0 127 136 / 12%);
+}
+
+.responsive-app-frame.is-light-mode .lines-search button,
+.responsive-app-frame.is-light-mode .line-favorite-toggle,
+.responsive-app-frame.is-light-mode .line-card-chevron,
+.responsive-app-frame.is-light-mode .line-direction li > span {
+  border-color: rgb(10 26 40 / 12%);
+  color: #536274;
+  background: #eef4f7;
+}
+
+.responsive-app-frame.is-light-mode .lines-search button:hover,
+.responsive-app-frame.is-light-mode .line-favorite-toggle:hover {
+  color: #007f88;
+  background: #e2ebef;
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-body,
+.responsive-app-frame.is-light-mode .favorites-modal-body {
+  background: rgb(255 255 255 / 80%);
+}
+
+.responsive-app-frame.is-light-mode .lines-group-heading {
+  color: #647488;
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 1px 0 rgb(10 26 40 / 8%);
+}
+
+.responsive-app-frame.is-light-mode .modal-favorites-block,
+.responsive-app-frame.is-light-mode .line-card,
+.responsive-app-frame.is-light-mode .favorite-line,
+.responsive-app-frame.is-light-mode .favorite-add-grid button,
+.responsive-app-frame.is-light-mode .favorite-direction-list button {
+  border-color: rgb(10 26 40 / 11%);
+  color: #172230;
+  background: rgb(255 255 255 / 92%);
+}
+
+.responsive-app-frame.is-light-mode .line-card-summary:hover,
+.responsive-app-frame.is-light-mode .line-card-header:hover,
+.responsive-app-frame.is-light-mode .favorite-line:hover,
+.responsive-app-frame.is-light-mode .favorite-add-grid button:hover,
+.responsive-app-frame.is-light-mode .favorite-direction-list button:hover,
+.responsive-app-frame.is-light-mode .favorite-line.is-active {
+  background: rgb(0 127 136 / 8%);
+}
+
+.responsive-app-frame.is-light-mode .line-card-expand,
+.responsive-app-frame.is-light-mode .modal-favorites-block h3,
+.responsive-app-frame.is-light-mode .favorite-section h3,
+.responsive-app-frame.is-light-mode .favorite-line b,
+.responsive-app-frame.is-light-mode .favorite-add-grid b,
+.responsive-app-frame.is-light-mode .favorite-direction-list span,
+.responsive-app-frame.is-light-mode .line-direction h3 {
+  color: #172230;
+}
+
+.responsive-app-frame.is-light-mode .line-card-title small,
+.responsive-app-frame.is-light-mode .modal-favorites-block small,
+.responsive-app-frame.is-light-mode .favorite-empty,
+.responsive-app-frame.is-light-mode .favorite-direction-list small,
+.responsive-app-frame.is-light-mode .lines-empty {
+  color: #647488;
+}
+
+.responsive-app-frame.is-light-mode .line-direction:first-child:not(:last-child) {
+  border-right-color: rgb(10 26 40 / 10%);
+}
+
+.responsive-app-frame.is-light-mode .line-direction li button {
+  border-color: rgb(10 26 40 / 9%);
+  color: #24313d;
+  background: #f7fbfc;
+}
+
+.responsive-app-frame.is-light-mode .line-direction li button:hover {
+  border-color: rgb(0 127 136 / 24%);
+  background: #edf7f7;
+}
+
+.responsive-app-frame.is-light-mode .line-rail button {
+  border-color: rgb(10 26 40 / 11%);
+  color: #172230;
+  background: rgb(255 255 255 / 92%);
+}
+
+.responsive-app-frame.is-light-mode .line-rail button.is-active {
+  color: #042321;
+  border-color: #00a6a6;
+  background: #8fe5dc;
+}
+
+.responsive-app-frame.is-light-mode .line-rail button .line-favorite-star,
+.responsive-app-frame.is-light-mode .favorite-star,
+.responsive-app-frame.is-light-mode .line-favorite-toggle {
+  text-shadow: none;
+}
+
+.responsive-app-frame.is-light-mode .line-rail-toggle {
+  color: #172230;
+}
+
+.responsive-app-frame.is-light-mode .info-modal header {
+  border-bottom-color: rgb(10 26 40 / 10%);
+  background: rgb(247 251 252 / 96%);
+}
+
+.responsive-app-frame.is-light-mode .info-modal-body {
+  background: transparent;
+}
+
+.responsive-app-frame.is-light-mode .info-modal-body p {
+  color: #415166;
+}
+
+.responsive-app-frame.is-light-mode .modal-close {
+  border-color: rgb(10 26 40 / 12%);
+  color: #172230;
+  background: #eef4f7;
+}
+
+.responsive-app-frame.is-light-mode .modal-close:hover {
+  background: #e2ebef;
+}
+
+.responsive-app-frame.is-light-mode .donate-option {
+  border-color: rgb(10 26 40 / 12%);
+  background: rgb(255 255 255 / 96%);
+  box-shadow: 0 12px 30px rgb(18 42 66 / 12%);
+}
+
+.responsive-app-frame.is-light-mode .donate-option:hover {
+  border-color: rgb(0 127 136 / 28%);
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgb(18 42 66 / 16%);
+}
+
+.responsive-app-frame.is-light-mode .revolut-option img {
+  filter: none;
 }
 
 .favorite-result-card {
@@ -1320,6 +1837,7 @@ h2 {
   background: #111820;
   font-weight: 900;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .donate-option:hover {
@@ -1329,8 +1847,8 @@ h2 {
 
 .donate-option img {
   display: block;
-  max-width: 84px;
-  height: 24px;
+  max-width: 104px;
+  height: 26px;
   object-fit: contain;
 }
 
@@ -1650,6 +2168,19 @@ h2 {
   text-align: center;
 }
 
+.lines-group-heading {
+  position: sticky;
+  top: -10px;
+  z-index: 10;
+  margin: 0 -10px;
+  padding: 12px 10px 6px;
+  color: rgb(255 255 255 / 50%);
+  background: #0b1118;
+  font-size: 0.65rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
 .line-card {
   position: relative;
   overflow: hidden;
@@ -1925,70 +2456,39 @@ h2 {
 
 @media (max-width: 720px) {
   .responsive-app-frame {
-    --phone-width: 390px;
-    --phone-height: 844px;
-    --phone-border: 10px;
     position: relative;
-    display: grid;
-    min-height: 100%;
-    place-items: center;
-    padding: 24px;
+    width: 100%;
+    height: 100%;
+    min-height: 100dvh;
     overflow: hidden;
-    background:
-      radial-gradient(circle at 22% 16%, rgb(125 224 212 / 12%), transparent 30%),
-      radial-gradient(circle at 82% 88%, rgb(61 124 255 / 12%), transparent 34%),
-      linear-gradient(145deg, #05070a, #111820 48%, #07090c);
+    background: #07090c;
   }
 
   .responsive-app-frame::before {
-    position: absolute;
-    top: calc((100vh - min(var(--phone-height), calc(100vh - 48px))) / 2 + 18px);
-    left: 50%;
-    z-index: 20;
-    width: 118px;
-    height: 26px;
-    border-radius: 999px;
-    background: #05070a;
-    box-shadow:
-      inset 0 -1px 0 rgb(255 255 255 / 9%),
-      0 4px 12px rgb(0 0 0 / 42%);
-    content: "";
-    transform: translateX(-50%);
-    pointer-events: none;
+    content: none;
   }
 
   .responsive-app-frame::after {
-    position: absolute;
-    top: calc((100vh - min(var(--phone-height), calc(100vh - 48px))) / 2 + min(var(--phone-height), calc(100vh - 48px)) - 17px);
-    left: 50%;
-    z-index: 20;
-    width: 126px;
-    height: 4px;
-    border-radius: 999px;
-    background: rgb(255 255 255 / 18%);
-    content: "";
-    transform: translateX(-50%);
-    pointer-events: none;
+    content: none;
   }
 
   .responsive-app-frame .shell {
-    width: min(var(--phone-width), calc(100vw - 48px));
-    height: min(var(--phone-height), calc(100vh - 48px));
-    min-height: 0;
-    border: var(--phone-border) solid #05070a;
-    border-radius: 44px;
-    box-shadow:
-      0 34px 90px rgb(0 0 0 / 56%),
-      0 0 0 1px rgb(255 255 255 / 10%),
-      inset 0 0 0 1px rgb(255 255 255 / 7%);
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
   }
 
   .responsive-app-frame input,
+  .responsive-app-frame select,
   .responsive-app-frame textarea {
     cursor: text;
+    font-size: 16px;
     user-select: text;
     -webkit-user-select: text;
   }
@@ -2003,6 +2503,12 @@ h2 {
     pointer-events: none;
   }
 
+  .responsive-app-frame.is-light-mode .map::after {
+    background:
+      linear-gradient(180deg, rgb(237 244 247 / 54%), transparent 30%),
+      linear-gradient(0deg, rgb(237 244 247 / 58%), transparent 38%);
+  }
+
   .responsive-app-frame .top-stack {
     position: static;
     width: auto;
@@ -2011,12 +2517,12 @@ h2 {
 
   .responsive-app-frame .topbar {
     position: absolute;
-    top: 58px;
+    top: max(18px, env(safe-area-inset-top));
     left: 16px;
     right: 16px;
     z-index: 9;
     display: block;
-    min-height: 72px;
+    min-height: 80px;
     max-width: none;
     padding: 12px;
     border-radius: 20px;
@@ -2025,11 +2531,18 @@ h2 {
     pointer-events: auto;
   }
 
+  .responsive-app-frame .topbar.is-hidden-on-mobile {
+    opacity: 0;
+    pointer-events: none;
+    transform: translateY(-10px);
+    visibility: hidden;
+  }
+
   .responsive-app-frame .topbar > div {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    gap: 7px;
+    gap: 10px;
   }
 
   .responsive-app-frame .topbar .eyebrow {
@@ -2038,9 +2551,27 @@ h2 {
     font-size: 0.58rem;
   }
 
+  .responsive-app-frame .app-brand {
+    display: inline-flex;
+    width: fit-content;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    margin: 0;
+  }
+
+  .responsive-app-frame .app-brand-full {
+    width: 124px;
+    height: 78px;
+    border-radius: 8px;
+    transform: scale(1.12);
+  }
+
   .responsive-app-frame .topbar h1 {
+    display: block;
     max-width: 112px;
-    font-size: 0.98rem;
+    font-size: 0.94rem;
     line-height: 1.08;
   }
 
@@ -2092,7 +2623,7 @@ h2 {
 
   .responsive-app-frame .notice-bar {
     position: absolute;
-    top: 144px;
+    top: max(126px, calc(env(safe-area-inset-top) + 108px));
     left: 16px;
     right: 16px;
     z-index: 8;
@@ -2100,7 +2631,7 @@ h2 {
   }
 
   .responsive-app-frame .floating-search {
-    top: 144px;
+    top: max(126px, calc(env(safe-area-inset-top) + 108px));
     left: 16px;
     right: 16px;
     z-index: 8;
@@ -2141,21 +2672,30 @@ h2 {
   }
 
   .responsive-app-frame .journey-card.is-mobile-panel-open {
-    top: 150px;
+    position: absolute;
+    top: auto;
     left: 16px;
     right: 16px;
-    bottom: 104px;
+    bottom: 96px;
     z-index: 8;
     display: grid;
     width: auto;
-    max-height: none;
+    max-height: min(66dvh, 520px);
     overflow-y: auto;
-    border-radius: 20px;
-    background: rgb(8 12 17 / 90%);
+    border-radius: 22px 22px 28px 28px;
+    background: rgb(8 12 17 / 94%);
     box-shadow: 0 20px 56px rgb(0 0 0 / 36%);
     backdrop-filter: blur(18px);
     scrollbar-width: none;
     -ms-overflow-style: none;
+    transform-origin: center bottom;
+    animation: routePanelUnfold 180ms ease-out;
+  }
+
+  .responsive-app-frame.is-light-mode .journey-card.is-mobile-panel-open {
+    color: #101923;
+    background: rgb(255 255 255 / 94%);
+    box-shadow: 0 20px 56px rgb(18 42 66 / 18%);
   }
 
   .responsive-app-frame .journey-card.is-mobile-panel-open::-webkit-scrollbar {
@@ -2163,8 +2703,114 @@ h2 {
     height: 0;
   }
 
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-form {
+    grid-template-columns: 1fr;
+  }
+
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-time-row {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-actions {
+    grid-template-columns: minmax(0, 1fr) 48px;
+  }
+
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-submit-label {
+    display: block;
+  }
+
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-options,
+  .responsive-app-frame .journey-card.is-mobile-panel-open .journey-result {
+    display: none;
+  }
+
+  .mobile-journey-results {
+    position: absolute;
+    left: 22px;
+    right: 22px;
+    bottom: 96px;
+    z-index: 11;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 148px));
+    justify-content: center;
+    gap: 10px;
+    pointer-events: auto;
+  }
+
+  .mobile-journey-results article {
+    display: grid;
+    aspect-ratio: 1 / 1;
+    min-width: 0;
+    align-content: space-between;
+    gap: 6px;
+    border: 1px solid rgb(255 255 255 / 13%);
+    border-radius: 18px;
+    padding: 12px;
+    color: #d8e0e8;
+    background: rgb(8 12 17 / 93%);
+    box-shadow:
+      0 18px 48px rgb(0 0 0 / 34%),
+      inset 0 0 0 1px rgb(255 255 255 / 5%);
+    backdrop-filter: blur(18px);
+    cursor: pointer;
+    text-align: left;
+  }
+
+  .mobile-journey-results article.is-empty {
+    opacity: 0.58;
+    cursor: default;
+  }
+
+  .mobile-journey-results article.is-active {
+    border-color: rgb(125 224 212 / 62%);
+    background: rgb(24 42 47 / 95%);
+    box-shadow:
+      0 18px 48px rgb(0 0 0 / 36%),
+      0 0 0 3px rgb(125 224 212 / 12%);
+  }
+
+  .mobile-journey-results span {
+    color: #9ee8df;
+    font-size: 0.68rem;
+    font-weight: 900;
+    line-height: 1;
+    text-transform: uppercase;
+  }
+
+  .mobile-journey-results strong {
+    color: #f7d154;
+    font-size: clamp(1.25rem, 7.3vw, 1.72rem);
+    line-height: 0.95;
+  }
+
+  .mobile-journey-results small,
+  .mobile-journey-results em {
+    overflow: hidden;
+    color: #aeb8c4;
+    font-size: 0.75rem;
+    font-style: normal;
+    font-weight: 800;
+    line-height: 1.15;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobile-journey-results .journey-card-cta {
+    display: grid;
+    min-height: 28px;
+    place-items: center;
+    border: 0;
+    border-radius: 999px;
+    color: #06100f;
+    background: #7de0d4;
+    font-size: 0.74rem;
+    font-weight: 950;
+    text-transform: none;
+    cursor: pointer;
+  }
+
   .responsive-app-frame .line-rail {
-    top: 150px;
+    top: max(126px, calc(env(safe-area-inset-top) + 108px));
     bottom: auto;
     left: 16px;
     right: 16px;
@@ -2172,7 +2818,7 @@ h2 {
     display: none;
     width: auto;
     min-width: 0;
-    max-height: 172px;
+    max-height: min(50dvh, 430px);
     border-radius: 20px;
     padding: 10px;
     background: rgb(8 12 17 / 88%);
@@ -2186,7 +2832,7 @@ h2 {
 
   .responsive-app-frame .line-rail.is-expanded .line-rail-list,
   .responsive-app-frame .line-rail.is-collapsed .line-rail-list {
-    max-height: 108px;
+    max-height: min(40dvh, 340px);
   }
 
   .responsive-app-frame .line-rail-header {
@@ -2337,6 +2983,65 @@ h2 {
     cursor: pointer;
   }
 
+  .mobile-settings-popover .theme-toggle-option {
+    padding-right: 8px;
+  }
+
+  .theme-toggle-switch {
+    position: relative;
+    flex: 0 0 46px;
+    width: 46px;
+    height: 26px;
+    border: 1px solid rgb(255 255 255 / 14%);
+    border-radius: 999px;
+    background: rgb(255 255 255 / 10%);
+    box-shadow: inset 0 1px 4px rgb(0 0 0 / 24%);
+    transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+  }
+
+  .theme-toggle-switch span {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #d8e0e8;
+    box-shadow: 0 2px 8px rgb(0 0 0 / 28%);
+    transition: transform 180ms ease, background 160ms ease;
+  }
+
+  .mobile-settings-popover .theme-toggle-option.is-active .theme-toggle-switch {
+    border-color: rgb(125 224 212 / 65%);
+    background: #7de0d4;
+    box-shadow: inset 0 1px 4px rgb(0 0 0 / 10%), 0 0 0 3px rgb(125 224 212 / 12%);
+  }
+
+  .mobile-settings-popover .theme-toggle-option.is-active .theme-toggle-switch span {
+    background: #06100f;
+    transform: translateX(20px);
+  }
+
+  .responsive-app-frame.is-light-mode .theme-toggle-switch {
+    border-color: rgb(10 26 40 / 16%);
+    background: rgb(10 26 40 / 10%);
+    box-shadow: inset 0 1px 4px rgb(18 42 66 / 12%);
+  }
+
+  .responsive-app-frame.is-light-mode .theme-toggle-switch span {
+    background: #ffffff;
+  }
+
+  .responsive-app-frame.is-light-mode .mobile-settings-popover .theme-toggle-option.is-active .theme-toggle-switch {
+    border-color: rgb(0 127 136 / 34%);
+    background: #42d8cd;
+    box-shadow: inset 0 1px 4px rgb(18 42 66 / 10%), 0 0 0 3px rgb(0 127 136 / 10%);
+  }
+
+  .responsive-app-frame.is-light-mode .mobile-settings-popover .theme-toggle-option.is-active .theme-toggle-switch span {
+    background: #ffffff;
+  }
+
   .mobile-settings-popover button:disabled {
     opacity: 0.48;
     cursor: not-allowed;
@@ -2346,4 +3051,194 @@ h2 {
     color: #9da8b5;
     font-size: 0.66rem;
   }
+}
+
+.responsive-app-frame.is-light-mode .modal-backdrop {
+  background: rgb(237 244 247 / 42%);
+  backdrop-filter: blur(8px);
+}
+
+.responsive-app-frame.is-light-mode .mobile-nav-pill {
+  border-color: rgb(10 26 40 / 10%);
+  background: rgb(255 255 255 / 95%);
+  box-shadow:
+    0 18px 46px rgb(18 42 66 / 20%),
+    inset 0 0 0 1px rgb(255 255 255 / 82%);
+}
+
+.responsive-app-frame.is-light-mode .mobile-nav-pill button {
+  color: #526173;
+}
+
+.responsive-app-frame.is-light-mode .mobile-nav-pill button:not(.is-active):hover {
+  color: #007f88;
+  background: rgb(0 127 136 / 8%);
+}
+
+.responsive-app-frame.is-light-mode .mobile-nav-pill button.is-active {
+  color: #052f30;
+  background: linear-gradient(135deg, #9af0e6, #63d7cf);
+  box-shadow: 0 10px 22px rgb(0 127 136 / 18%);
+}
+
+.responsive-app-frame.is-light-mode .lines-modal,
+.responsive-app-frame.is-light-mode .favorites-modal {
+  border-color: rgb(10 26 40 / 11%);
+  color: #14202c;
+  background: #f8fbfc;
+  box-shadow: 0 22px 54px rgb(18 42 66 / 20%);
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-header {
+  border-bottom-color: rgb(10 26 40 / 9%);
+  color: #14202c;
+  background: #ffffff;
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-header h2 {
+  color: #14202c;
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-header .eyebrow {
+  color: #008891;
+}
+
+.responsive-app-frame.is-light-mode .lines-search {
+  border-bottom-color: rgb(10 26 40 / 9%);
+  background: #f8fbfc;
+}
+
+.responsive-app-frame.is-light-mode .lines-search input {
+  border-color: rgb(10 26 40 / 12%);
+  color: #14202c;
+  background: rgb(255 255 255 / 95%);
+}
+
+.responsive-app-frame.is-light-mode .lines-search input:focus {
+  border-color: #00a6a6;
+  background: #ffffff;
+  box-shadow: 0 0 0 3px rgb(0 127 136 / 13%);
+}
+
+.responsive-app-frame.is-light-mode .lines-search button,
+.responsive-app-frame.is-light-mode .modal-close {
+  border-color: rgb(10 26 40 / 10%);
+  color: #425166;
+  background: #eef4f7;
+}
+
+.responsive-app-frame.is-light-mode .lines-search button:hover,
+.responsive-app-frame.is-light-mode .modal-close:hover {
+  color: #007f88;
+  background: #e2ebef;
+}
+
+.responsive-app-frame.is-light-mode .lines-modal-body,
+.responsive-app-frame.is-light-mode .favorites-modal-body {
+  background: #f8fbfc;
+}
+
+.responsive-app-frame.is-light-mode .line-card,
+.responsive-app-frame.is-light-mode .modal-favorites-block,
+.responsive-app-frame.is-light-mode .favorite-line,
+.responsive-app-frame.is-light-mode .favorite-add-grid button,
+.responsive-app-frame.is-light-mode .favorite-direction-list button {
+  border-color: rgb(10 26 40 / 10%);
+  color: #14202c;
+  background: #ffffff;
+}
+
+.responsive-app-frame.is-light-mode .line-card.is-expanded,
+.responsive-app-frame.is-light-mode .favorite-line.is-active,
+.responsive-app-frame.is-light-mode .favorite-direction-list button.is-active,
+.responsive-app-frame.is-light-mode .favorite-add-grid button.is-favorite {
+  border-color: rgb(0 127 136 / 32%);
+  background: #eefafa;
+}
+
+.responsive-app-frame.is-light-mode .line-card-summary:hover,
+.responsive-app-frame.is-light-mode .line-card-header:hover,
+.responsive-app-frame.is-light-mode .line-card-expand:hover,
+.responsive-app-frame.is-light-mode .favorite-line:hover,
+.responsive-app-frame.is-light-mode .favorite-add-grid button:hover,
+.responsive-app-frame.is-light-mode .favorite-direction-list button:hover {
+  color: #007f88;
+  background: rgb(0 127 136 / 7%);
+}
+
+.responsive-app-frame.is-light-mode .line-card-expand,
+.responsive-app-frame.is-light-mode .line-direction h3,
+.responsive-app-frame.is-light-mode .favorite-section h3,
+.responsive-app-frame.is-light-mode .favorite-line b,
+.responsive-app-frame.is-light-mode .favorite-add-grid b,
+.responsive-app-frame.is-light-mode .favorite-direction-list span,
+.responsive-app-frame.is-light-mode .modal-favorites-block h3 {
+  color: #14202c;
+}
+
+.responsive-app-frame.is-light-mode .line-card-title small,
+.responsive-app-frame.is-light-mode .favorite-empty,
+.responsive-app-frame.is-light-mode .favorite-direction-list small,
+.responsive-app-frame.is-light-mode .modal-favorites-block small,
+.responsive-app-frame.is-light-mode .lines-empty {
+  color: #607185;
+}
+
+.responsive-app-frame.is-light-mode .line-card-chevron,
+.responsive-app-frame.is-light-mode .line-favorite-toggle,
+.responsive-app-frame.is-light-mode .line-direction li > span {
+  border-color: rgb(10 26 40 / 10%);
+  color: #007f88;
+  background: #eef4f7;
+  text-shadow: none;
+}
+
+.responsive-app-frame.is-light-mode .line-favorite-toggle.is-favorite,
+.responsive-app-frame.is-light-mode .favorite-star {
+  color: #b57900;
+  text-shadow: none;
+}
+
+.responsive-app-frame.is-light-mode .line-direction:first-child:not(:last-child) {
+  border-right-color: rgb(10 26 40 / 10%);
+}
+
+.responsive-app-frame.is-light-mode .line-direction li button {
+  border-color: rgb(10 26 40 / 8%);
+  color: #273443;
+  background: #f6fafb;
+}
+
+.responsive-app-frame.is-light-mode .line-direction li button:hover {
+  border-color: rgb(0 127 136 / 28%);
+  color: #007f88;
+  background: #edf8f8;
+}
+
+.responsive-app-frame.is-light-mode .line-rail {
+  border-color: rgb(10 26 40 / 10%);
+  color: #14202c;
+  background: rgb(255 255 255 / 95%);
+  box-shadow: 0 18px 46px rgb(18 42 66 / 18%);
+}
+
+.responsive-app-frame.is-light-mode .line-rail-toggle {
+  color: #425166;
+}
+
+.responsive-app-frame.is-light-mode .line-rail button {
+  border-color: rgb(10 26 40 / 10%);
+  color: #14202c;
+  background: #ffffff;
+}
+
+.responsive-app-frame.is-light-mode .line-rail button:hover {
+  color: #007f88;
+  background: #edf8f8;
+}
+
+.responsive-app-frame.is-light-mode .line-rail button.is-active {
+  border-color: #00a6a6;
+  color: #052f30;
+  background: #91ece3;
 }
